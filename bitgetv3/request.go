@@ -1,0 +1,75 @@
+package bitgetv3
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+
+	"github.com/msw-x/moon/ufmt"
+	"github.com/msw-x/moon/uhttp"
+)
+
+func GetPub[R, T any](c *Client, path string, req any, transform func(R) (T, error)) Response[T] {
+	return request(c, http.MethodGet, path, req, transform, false)
+}
+
+func request[R, T any](c *Client, method string, path string, request any, transform func(R) (T, error), sign bool) (r Response[T]) {
+	var attempt int
+	for {
+		r = req(c, method, path, request, transform, sign)
+		if r.StatusCode != http.StatusOK && c.onTransportError != nil {
+			if c.onTransportError(r.Error, method, r.StatusCode, attempt) {
+				attempt++
+				continue
+			}
+		}
+		break
+	}
+	return
+}
+
+func req[R, T any](c *Client, method string, path string, request any, transform func(R) (T, error), sign bool) (r Response[T]) {
+	var perf *uhttp.Performer
+	switch method {
+	case http.MethodGet:
+		perf = c.c.Get(path).Params(request)
+	case http.MethodPost:
+		perf = c.c.Post(path).Json(request)
+	default:
+		r.Error = fmt.Errorf("forbidden method: %s", method)
+		return
+	}
+	if sign && c.s != nil {
+		// TODO: implemented with the first private endpoint (sign.go)
+		r.Error = errors.New("request signing is not implemented")
+		return
+	}
+	h := perf.Do()
+	if h.Error == nil {
+		r.StatusCode = h.StatusCode
+		if h.BodyExists() &&
+			r.StatusCode != http.StatusInternalServerError &&
+			r.StatusCode != http.StatusBadGateway &&
+			r.StatusCode != http.StatusServiceUnavailable &&
+			r.StatusCode != http.StatusGatewayTimeout {
+			raw := new(response[R])
+			r.Error = h.Json(raw)
+			if r.Ok() {
+				r.Time = raw.RequestTime
+				r.Error = raw.Error()
+				if r.Ok() {
+					r.Data, r.Error = transform(raw.Data)
+				}
+			}
+		} else {
+			r.Error = errors.New(ufmt.Join(h.Status))
+		}
+		if sign {
+			r.SetErrorIfNil(h.HeaderTo(&r.Limit))
+		}
+	} else {
+		r.Error = h.Error
+		r.NetError = true
+	}
+	return
+}
