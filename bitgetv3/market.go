@@ -232,3 +232,118 @@ type InstrumentMargin struct {
 	// LaunchTime - Launch time, unix millisecond timestamp, may be null
 	LaunchTime ujson.Int64
 }
+
+// GetTickers - request for GET /api/v3/market/tickers (UTA)
+// https://www.bitget.com/api-doc/uta/public/Tickers
+//
+//	category Required string Product type: SPOT, USDT-FUTURES, COIN-FUTURES, USDC-FUTURES
+//	symbol            string Symbol name, e.g. BTCUSDT
+type GetTickers struct {
+	// Category - Product type: SPOT, USDT-FUTURES, COIN-FUTURES, USDC-FUTURES (MARGIN is not supported)
+	Category Category
+	// Symbol - Symbol name, e.g. BTCUSDT
+	Symbol string `url:",omitempty"`
+}
+
+func getTickers[T any](o GetTickers, c *Client) Response[[]T] {
+	return GetPub(c.market(), "tickers", o, forward[[]T])
+}
+
+func (o GetTickers) Do(c *Client) Response[[]Ticker] {
+	return getTickers[Ticker](o, c)
+}
+
+func (o GetTickers) DoSpot(c *Client) Response[[]TickerSpot] {
+	o.Category = Spot
+	return getTickers[TickerSpot](o, c)
+}
+
+func (o *Client) GetTickers(v GetTickers) Response[[]Ticker] {
+	return v.Do(o)
+}
+
+func (o *Client) GetTickersSpot(v GetTickers) Response[[]TickerSpot] {
+	return v.DoSpot(o)
+}
+
+// Ticker - item in GET /api/v3/market/tickers response (Futures categories)
+// https://www.bitget.com/api-doc/uta/public/Tickers
+type Ticker struct {
+	// Symbol - Symbol name
+	Symbol string
+	// Category - Product type: USDT-FUTURES, COIN-FUTURES, USDC-FUTURES
+	Category Category
+	// LastPrice - Latest price
+	LastPrice ujson.Float64
+	// OpenPrice24h - Market price 24 hours ago
+	OpenPrice24h ujson.Float64
+	// HighPrice24h - Highest price in the last 24 hours
+	HighPrice24h ujson.Float64
+	// LowPrice24h - Lowest price in the last 24 hours
+	LowPrice24h ujson.Float64
+	// Ask1Price - Best ask price
+	Ask1Price ujson.Float64
+	// Bid1Price - Best bid price
+	Bid1Price ujson.Float64
+	// Bid1Size - Best bid quantity
+	Bid1Size ujson.Float64
+	// Ask1Size - Best ask quantity
+	Ask1Size ujson.Float64
+	// Price24hPcnt - 24-hour price change percentage
+	Price24hPcnt ujson.Float64
+	// Volume24h - 24-hour volume
+	Volume24h ujson.Float64
+	// Turnover24h - 24-hour turnover
+	Turnover24h ujson.Float64
+	// IndexPrice - Index price
+	IndexPrice ujson.Float64
+	// MarkPrice - Mark price
+	MarkPrice ujson.Float64
+	// FundingRate - Funding rate
+	FundingRate ujson.Float64
+	// OpenInterest - Open interest
+	OpenInterest ujson.Float64
+	// DeliveryStartTime - Delivery start time, available only for deliveries, "" for perpetuals
+	DeliveryStartTime ujson.Int64
+	// DeliveryTime - Delivery time, available only for deliveries, "" for perpetuals
+	DeliveryTime ujson.Int64
+	// DeliveryStatus - Delivery status: delivery_config_period, delivery_normal, delivery_before, delivery_period, available only for deliveries
+	DeliveryStatus string
+	// Ts - The timestamp that the system generated the data, unix millisecond timestamp
+	Ts ujson.Int64
+}
+
+// TickerSpot - item in GET /api/v3/market/tickers response (SPOT category)
+// https://www.bitget.com/api-doc/uta/public/Tickers
+type TickerSpot struct {
+	// Symbol - Symbol name
+	Symbol string
+	// Category - Product type: SPOT
+	Category Category
+	// LastPrice - Latest price
+	LastPrice ujson.Float64
+	// OpenPrice24h - Market price 24 hours ago
+	OpenPrice24h ujson.Float64
+	// HighPrice24h - Highest price in the last 24 hours
+	HighPrice24h ujson.Float64
+	// LowPrice24h - Lowest price in the last 24 hours
+	LowPrice24h ujson.Float64
+	// Ask1Price - Best ask price
+	Ask1Price ujson.Float64
+	// Bid1Price - Best bid price
+	Bid1Price ujson.Float64
+	// Bid1Size - Best bid quantity
+	Bid1Size ujson.Float64
+	// Ask1Size - Best ask quantity
+	Ask1Size ujson.Float64
+	// Price24hPcnt - 24-hour price change percentage
+	Price24hPcnt ujson.Float64
+	// Volume24h - 24-hour volume
+	Volume24h ujson.Float64
+	// Turnover24h - 24-hour turnover
+	Turnover24h ujson.Float64
+	// PlatformTurnover24h - 24-hour platform turnover, only available for rtoken
+	PlatformTurnover24h ujson.Float64
+	// Ts - The timestamp that the system generated the data, unix millisecond timestamp
+	Ts ujson.Int64
+}
