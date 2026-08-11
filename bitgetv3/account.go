@@ -132,3 +132,101 @@ type DepositRecord struct {
 	// UpdatedTime - Deposit record update time, unix millisecond timestamp
 	UpdatedTime ujson.Int64
 }
+
+// GetFundingAssets - request for GET /api/v3/account/funding-assets (UTA)
+// https://www.bitget.com/api-doc/uta/account/Get-Account-Funding-Assets
+// Rate limit: 20/sec/UID, permission: UTA mgt. (read)
+type GetFundingAssets struct {
+	// Coin - Coin name; if omitted, all coins with assets are returned
+	// (Pre-IPO tokens use mixed case, e.g. preSPAX)
+	Coin string `url:",omitempty"`
+}
+
+func (o GetFundingAssets) Do(c *Client) Response[[]FundingAsset] {
+	return Get(c, "account/funding-assets", o, forward[[]FundingAsset])
+}
+
+func (o *Client) GetFundingAssets(v GetFundingAssets) Response[[]FundingAsset] {
+	return v.Do(o)
+}
+
+// FundingAsset - item of GET /api/v3/account/funding-assets response (UTA)
+// https://www.bitget.com/api-doc/uta/account/Get-Account-Funding-Assets
+type FundingAsset struct {
+	// Coin - Coin name
+	Coin string
+	// Balance - Balance. Unit: the current asset coin
+	Balance ujson.Float64
+	// Available - Available. Unit: the current asset coin
+	Available ujson.Float64
+	// Frozen - Frozen. Unit: the current asset coin
+	Frozen ujson.Float64
+}
+
+// GetAccountAssets - request for GET /api/v3/account/assets (UTA)
+// https://www.bitget.com/api-doc/uta/account/Get-Account
+// Rate limit: 20/sec/UID, permission: UTA mgt. (read), no request parameters
+type GetAccountAssets struct{}
+
+func (o GetAccountAssets) Do(c *Client) Response[AccountAssets] {
+	return Get(c, "account/assets", o, forward[AccountAssets])
+}
+
+func (o *Client) GetAccountAssets() Response[AccountAssets] {
+	return GetAccountAssets{}.Do(o)
+}
+
+// AccountAssets - response for GET /api/v3/account/assets (UTA)
+// https://www.bitget.com/api-doc/uta/account/Get-Account
+type AccountAssets struct {
+	// AccountEquity - Account equity (USD)
+	AccountEquity ujson.Float64
+	// UsdtEquity - Account equity (USDT)
+	UsdtEquity ujson.Float64
+	// BtcEquity - Account equity (BTC)
+	BtcEquity ujson.Float64
+	// UnrealisedPnl - Unrealised profit and loss (USD)
+	UnrealisedPnl ujson.Float64
+	// UsdtUnrealisedPnl - Unrealised profit and loss (USDT)
+	UsdtUnrealisedPnl ujson.Float64
+	// BtcUnrealizedPnl - Unrealised profit and loss (BTC)
+	// (API spells this field with "z" - btcUnrealizedPnl, unlike the USD/USDT variants with "s")
+	BtcUnrealizedPnl ujson.Float64
+	// EffEquity - Effective equity (USD): the net value available for margin in spot and perpetual trades under cross-margin mode, converted to fiat
+	EffEquity ujson.Float64
+	// Mmr - Maintenance margin (USD): the minimum margin required to maintain the position, converted to fiat
+	Mmr ujson.Float64
+	// Imr - Initial margin (USD): total initial margin of assets in base coin, converted to fiat
+	Imr ujson.Float64
+	// MgnRatio - Margin ratio
+	MgnRatio ujson.Float64
+	// PositionMgnRatio - Position MMR
+	PositionMgnRatio ujson.Float64
+	// PositionValue - Position value (USD)
+	PositionValue ujson.Float64
+	// Leverage - Account leverage, non-negative number
+	Leverage ujson.Float64
+	// Assets - Asset list (only non-zero balances are returned)
+	Assets []AccountAsset
+}
+
+// AccountAsset - item of assets list in GET /api/v3/account/assets response (UTA)
+// https://www.bitget.com/api-doc/uta/account/Get-Account
+type AccountAsset struct {
+	// Coin - Coin name
+	Coin string
+	// Equity - Coin equity
+	Equity ujson.Float64
+	// UsdValue - Coin equity (USD)
+	UsdValue ujson.Float64
+	// Balance - Coin balance
+	Balance ujson.Float64
+	// Available - Available
+	Available ujson.Float64
+	// Debt - Debt (applicable when placing margin orders)
+	Debt ujson.Float64
+	// Locked - Locked (applicable when placing spot orders)
+	Locked ujson.Float64
+	// Bonus - USDT bonus amount
+	Bonus ujson.Float64
+}
