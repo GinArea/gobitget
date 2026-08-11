@@ -13,6 +13,10 @@ func GetPub[R, T any](c *Client, path string, req any, transform func(R) (T, err
 	return request(c, http.MethodGet, path, req, transform, false)
 }
 
+func Get[R, T any](c *Client, path string, req any, transform func(R) (T, error)) Response[T] {
+	return request(c, http.MethodGet, path, req, transform, true)
+}
+
 func request[R, T any](c *Client, method string, path string, request any, transform func(R) (T, error), sign bool) (r Response[T]) {
 	var attempt int
 	for {
@@ -40,9 +44,15 @@ func req[R, T any](c *Client, method string, path string, request any, transform
 		return
 	}
 	if sign && c.s != nil {
-		// TODO: implemented with the first private endpoint (sign.go)
-		r.Error = errors.New("request signing is not implemented")
-		return
+		if perf.Request.Header == nil {
+			perf.Request.Header = make(http.Header)
+		}
+		switch method {
+		case http.MethodGet:
+			c.s.HeaderGet(perf.Request.Header, perf.Request.Params, path, c.apiPath)
+		case http.MethodPost:
+			c.s.HeaderPost(perf.Request.Header, perf.Request.Body, path, c.apiPath)
+		}
 	}
 	h := perf.Do()
 	if h.Error == nil {
