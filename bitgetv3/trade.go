@@ -22,8 +22,45 @@ func (o *Client) GetOrder(v GetOrder) Response[Order] {
 	return v.Do(o)
 }
 
-// Order - response for GET /api/v3/trade/order-info (UTA)
+// GetOpenOrders - request for GET /api/v3/trade/unfilled-orders (UTA)
+// https://www.bitget.com/api-doc/uta/trade/Get-Order-Pending
+// Rate limit: 20/sec/UID, permission: UTA trade (read)
+// Order limit: 400 orders across all futures pairs, 400 across all spot and margin pairs
+type GetOpenOrders struct {
+	// Category - Product type: SPOT, MARGIN, USDT-FUTURES, COIN-FUTURES, USDC-FUTURES; if omitted, all categories are returned
+	Category Category `url:",omitempty"`
+	// Symbol - Symbol name, e.g. BTCUSDT
+	Symbol string `url:",omitempty"`
+	// StartTime - Start timestamp, unix millisecond timestamp
+	StartTime int64 `url:",omitempty"`
+	// EndTime - End timestamp, unix millisecond timestamp
+	EndTime int64 `url:",omitempty"`
+	// Limit - Limit per page, default 100, max 100
+	Limit int `url:",omitempty"`
+	// Cursor - Pagination cursor: omitted in the first query, taken from the previous query for subsequent pages
+	Cursor string `url:",omitempty"`
+}
+
+func (o GetOpenOrders) Do(c *Client) Response[OpenOrders] {
+	return Get(c, "trade/unfilled-orders", o, forward[OpenOrders])
+}
+
+func (o *Client) GetOpenOrders(v GetOpenOrders) Response[OpenOrders] {
+	return v.Do(o)
+}
+
+// OpenOrders - response for GET /api/v3/trade/unfilled-orders (UTA)
+// https://www.bitget.com/api-doc/uta/trade/Get-Order-Pending
+type OpenOrders struct {
+	// List - Order list (empty array when there are no open orders; tradeSide, cancelReason and execType are not returned by this endpoint)
+	List []Order
+	// Cursor - Cursor for the next page: the smallest orderId in the current page (null when the list is empty)
+	Cursor string
+}
+
+// Order - response for GET /api/v3/trade/order-info, item of list in GET /api/v3/trade/unfilled-orders (UTA)
 // https://www.bitget.com/api-doc/uta/trade/Get-Order-Details
+// https://www.bitget.com/api-doc/uta/trade/Get-Order-Pending
 type Order struct {
 	// OrderId - Order ID
 	OrderId string
@@ -95,8 +132,9 @@ type Order struct {
 	UpdatedTime ujson.Int64
 }
 
-// FeeDetail - item of feeDetail list in GET /api/v3/trade/order-info response (UTA)
+// FeeDetail - item of feeDetail list in GET /api/v3/trade/order-info and GET /api/v3/trade/unfilled-orders responses (UTA)
 // https://www.bitget.com/api-doc/uta/trade/Get-Order-Details
+// https://www.bitget.com/api-doc/uta/trade/Get-Order-Pending
 type FeeDetail struct {
 	// FeeCoin - Fee coin (empty when no fee was charged)
 	FeeCoin string
