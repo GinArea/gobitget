@@ -17,6 +17,10 @@ func Get[R, T any](c *Client, path string, req any, transform func(R) (T, error)
 	return request(c, http.MethodGet, path, req, transform, true)
 }
 
+func Post[R, T any](c *Client, path string, req any, transform func(R) (T, error)) Response[T] {
+	return request(c, http.MethodPost, path, req, transform, true)
+}
+
 func request[R, T any](c *Client, method string, path string, request any, transform func(R) (T, error), sign bool) (r Response[T]) {
 	var attempt int
 	for {

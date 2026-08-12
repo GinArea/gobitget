@@ -4,6 +4,71 @@ import (
 	"github.com/msw-x/moon/ujson"
 )
 
+// PlaceOrder - request for POST /api/v3/trade/place-order (UTA)
+// https://www.bitget.com/api-doc/uta/trade/Place-Order
+// Rate limit: 10/sec/UID, permission: UTA trade (read & write)
+// Order limit: 400 orders across all futures pairs, 400 across all spot and margin pairs
+// Note: on errors 40010/40725/45001 (timeout) query the order by ClientOid to confirm the final result
+type PlaceOrder struct {
+	// Category - Product type: SPOT, MARGIN, USDT-FUTURES, COIN-FUTURES, USDC-FUTURES
+	Category Category
+	// Symbol - Symbol name, e.g. BTCUSDT
+	Symbol string
+	// Qty - Order quantity; spot/margin: quote coin for market buy, base coin otherwise; USDT/USDC futures: base coin; COIN futures: quote coin
+	Qty ujson.StringFloat64
+	// Price - Order price; required for limit orders, not applicable for market orders
+	Price ujson.StringFloat64 `json:",omitempty"`
+	// Side - Order side: buy, sell
+	Side string
+	// OrderType - Order type: limit, market
+	OrderType string
+	// TimeInForce - Time in force: ioc, fok, gtc, post_only, rpi; required for limit orders, defaults to gtc
+	TimeInForce string `json:",omitempty"`
+	// PosSide - Position side: long, short; required in hedge-mode position; available only for futures
+	PosSide string `json:",omitempty"`
+	// ClientOid - Client order ID, 1-32 chars matching ^[\.A-Z\:/a-z0-9_-]{1,32}$
+	ClientOid string `json:",omitempty"`
+	// ReduceOnly - Reduce-only identifier: yes, no (default no)
+	ReduceOnly string `json:",omitempty"`
+	// StpMode - STP mode (Self Trade Prevention): none (default), cancel_taker, cancel_maker, cancel_both
+	StpMode string `json:",omitempty"`
+	// TpTriggerBy - Preset take-profit trigger type: market (default), mark; futures only
+	TpTriggerBy string `json:",omitempty"`
+	// SlTriggerBy - Preset stop-loss trigger type: market (default), mark; futures only
+	SlTriggerBy string `json:",omitempty"`
+	// TakeProfit - Preset take-profit trigger price
+	TakeProfit ujson.StringFloat64 `json:",omitempty"`
+	// StopLoss - Preset stop-loss trigger price
+	StopLoss ujson.StringFloat64 `json:",omitempty"`
+	// TpOrderType - Take-profit strategy order type: limit, market
+	TpOrderType string `json:",omitempty"`
+	// SlOrderType - Stop-loss strategy order type: limit, market
+	SlOrderType string `json:",omitempty"`
+	// TpLimitPrice - Take-profit strategy order execution price; valid only when TpOrderType is limit
+	TpLimitPrice ujson.StringFloat64 `json:",omitempty"`
+	// SlLimitPrice - Stop-loss strategy order execution price; valid only when SlOrderType is limit
+	SlLimitPrice ujson.StringFloat64 `json:",omitempty"`
+	// MarginMode - Margin mode: crossed (default), isolated; available only for futures
+	MarginMode string `json:",omitempty"`
+}
+
+func (o PlaceOrder) Do(c *Client) Response[PlacedOrder] {
+	return Post(c, "trade/place-order", o, forward[PlacedOrder])
+}
+
+func (o *Client) PlaceOrder(v PlaceOrder) Response[PlacedOrder] {
+	return v.Do(o)
+}
+
+// PlacedOrder - response for POST /api/v3/trade/place-order (UTA)
+// https://www.bitget.com/api-doc/uta/trade/Place-Order
+type PlacedOrder struct {
+	// OrderId - Order ID (null when a one-way-mode reduce-only order was auto-replaced)
+	OrderId string
+	// ClientOid - Client order ID
+	ClientOid string
+}
+
 // GetOrder - request for GET /api/v3/trade/order-info (UTA)
 // https://www.bitget.com/api-doc/uta/trade/Get-Order-Details
 // Rate limit: 20/sec/UID, permission: UTA trade (read)
