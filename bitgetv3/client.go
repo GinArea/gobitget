@@ -90,4 +90,10 @@ func (o *Client) market() *Client {
 	return o.Copy().WithAppendPath("market")
 }
 
+// v2 - client copy targeting the classic v2 API (affiliate/broker endpoints)
+// The signing scheme is identical to UTA v3, only the api path differs
+func (o *Client) v2() *Client {
+	return o.Copy().WithPath(ApiVersion2)
+}
+
 type OnTransportError func(err error, method string, statusCode int, attempt int) bool

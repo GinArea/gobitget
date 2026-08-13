@@ -4,4 +4,6 @@ const (
 	// REST API (UTA)
 	MainBaseUrl = "https://api.bitget.com"
 	ApiVersion  = "api/v3"
+	// REST API (classic v2, used by affiliate/broker endpoints)
+	ApiVersion2 = "api/v2"
 )
