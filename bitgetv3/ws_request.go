@@ -22,6 +22,9 @@ type SubscriptionArgs struct {
 	Topic string `json:"topic"`
 	// Symbol - Symbol name, e.g. BTCUSDT
 	Symbol string `json:"symbol"`
+	// Interval - Candlestick interval, kline topic only: 1m/3m/5m/15m/30m/1H/4H/6H/12H/1D
+	// (omitempty: interval-less topics like ticker must not send the key)
+	Interval string `json:"interval,omitempty"`
 }
 
 // wsArgs - build subscription args from a REST Category (uppercase -> lowercase instType)

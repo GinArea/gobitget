@@ -96,6 +96,107 @@ func TestWsTicker(t *testing.T) {
 	}
 }
 
+func wsCandleChan(c *WsPublic, category Category, symbol string, interval Interval) (*Executor[[]WsCandle], chan Topic[[]WsCandle]) {
+	ch := make(chan Topic[[]WsCandle], 16)
+	e := c.Candle(category, symbol, interval)
+	e.Subscribe(func(v Topic[[]WsCandle]) {
+		select {
+		case ch <- v:
+		default:
+		}
+	})
+	return e, ch
+}
+
+func waitCandle(t *testing.T, ch chan Topic[[]WsCandle], timeout time.Duration) Topic[[]WsCandle] {
+	t.Helper()
+	select {
+	case v := <-ch:
+		return v
+	case <-time.After(timeout):
+		t.Fatalf("no candle push within %v", timeout)
+		return Topic[[]WsCandle]{}
+	}
+}
+
+func TestWsCandle(t *testing.T) {
+	tests := []struct {
+		name     string
+		category Category
+		symbol   string
+		interval Interval
+	}{
+		{
+			name:     "usdt futures",
+			category: UsdtFutures,
+			symbol:   "BTCUSDT",
+			interval: Interval1m,
+		},
+		{
+			name:     "spot",
+			category: Spot,
+			symbol:   "BTCUSDT",
+			interval: Interval1m,
+		},
+	}
+
+	c := NewWsPublic()
+	c.Run()
+	defer c.Close()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e, ch := wsCandleChan(c, tt.category, tt.symbol, tt.interval)
+			defer e.Unsubscribe()
+			v := waitCandle(t, ch, 30*time.Second)
+			want := wsArgs("kline", tt.category, tt.symbol)
+			want.Interval = string(tt.interval)
+			if v.Arg != want {
+				t.Fatalf("expected arg %+v, got %+v", want, v.Arg)
+			}
+			if v.Action != "snapshot" && v.Action != "update" {
+				t.Fatalf("expected action snapshot or update, got %s", v.Action)
+			}
+			if len(v.Data) == 0 {
+				t.Fatal("expected non-empty data")
+			}
+			// the initial snapshot carries recent candle history sorted oldest-first:
+			// the current candle is the last item
+			d := v.Data[len(v.Data)-1]
+			if first := v.Data[0]; first.Start.Value() > d.Start.Value() {
+				t.Fatalf("expected candles sorted oldest-first, got first start %v > last start %v",
+					first.Start.Value(), d.Start.Value())
+			}
+			if d.Open.Value() <= 0 || d.High.Value() <= 0 || d.Low.Value() <= 0 || d.Close.Value() <= 0 {
+				t.Fatalf("expected positive ohlc, got o=%v h=%v l=%v c=%v",
+					d.Open.Value(), d.High.Value(), d.Low.Value(), d.Close.Value())
+			}
+			if d.High.Value() < d.Low.Value() {
+				t.Fatalf("expected high %v >= low %v", d.High.Value(), d.Low.Value())
+			}
+			if d.High.Value() < d.Open.Value() || d.High.Value() < d.Close.Value() {
+				t.Fatalf("expected high %v >= open %v and close %v", d.High.Value(), d.Open.Value(), d.Close.Value())
+			}
+			if d.Low.Value() > d.Open.Value() || d.Low.Value() > d.Close.Value() {
+				t.Fatalf("expected low %v <= open %v and close %v", d.Low.Value(), d.Open.Value(), d.Close.Value())
+			}
+			startAge := time.Since(time.UnixMilli(d.Start.Value()))
+			if startAge < -5*time.Second || startAge > 2*time.Minute {
+				t.Fatalf("expected start of the current 1m candle, got age %v", startAge)
+			}
+			age := time.Since(time.UnixMilli(v.Ts.Value()))
+			if age < -time.Minute || age > time.Minute {
+				t.Fatalf("expected fresh ts, got age %v", age)
+			}
+			// BTCUSDT trades continuously: candles are pushed once per second
+			waitCandle(t, ch, 10*time.Second)
+			t.Logf("snapshot of %d candles; last: start %v, o %v, h %v, l %v, c %v, vol %v, ts age %v",
+				len(v.Data), time.UnixMilli(d.Start.Value()).UTC().Format("15:04:05"),
+				d.Open.Value(), d.High.Value(), d.Low.Value(), d.Close.Value(), d.Volume.Value(), age)
+		})
+	}
+}
+
 func TestWsTickerUnsubscribe(t *testing.T) {
 	c := NewWsPublic()
 	c.Run()

@@ -72,3 +72,12 @@ func (o *WsPublic) WithOnError(f func(WsResponse)) *WsPublic {
 func (o *WsPublic) Ticker(category Category, symbol string) *Executor[[]WsTicker] {
 	return NewExecutor[[]WsTicker](wsArgs("ticker", category, symbol), o.subscriptions)
 }
+
+// Candle - candlestick stream: pushed once per second while trades occur, else once per interval
+// The first push is a snapshot with recent candle history sorted oldest-first (the current candle is last)
+// https://www.bitget.com/api-doc/uta/websocket/public/Candlesticks-Channel
+func (o *WsPublic) Candle(category Category, symbol string, interval Interval) *Executor[[]WsCandle] {
+	args := wsArgs("kline", category, symbol)
+	args.Interval = string(interval)
+	return NewExecutor[[]WsCandle](args, o.subscriptions)
+}
