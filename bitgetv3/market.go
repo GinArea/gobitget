@@ -364,12 +364,20 @@ type TickerSpot struct {
 //
 // rtoken symbols support only the market type (mark/index/premium silently fall back to market)
 // and only the 1m, 5m, 15m, 1H, 4H, 1D intervals (others return a parameter error)
+//
+// Undocumented intervals also work (inherited from the v2 API, verified live for all categories):
+// 2H, 3D, 1W, 1M and 6Hutc, 12Hutc, 1Dutc, 3Dutc, 1Wutc, 1Mutc.
+// Native 6H/12H/1D/3D/1W/1M candles open on the UTC+8 grid (weeks on Monday, months on the 1st),
+// the utc-suffixed variants - on the UTC grid; intervals up to 4H are UTC-aligned as is.
+// 3H, 8H, 1Hutc and 4Hutc do not exist (parameter error 40020).
+// See BITGET_API.md for the full interval/alignment reference table
 type GetCandles struct {
 	// Category - Product type: SPOT, USDT-FUTURES, COIN-FUTURES, USDC-FUTURES (MARGIN is not supported)
 	Category Category
 	// Symbol - Symbol name, e.g. BTCUSDT
 	Symbol string
 	// Interval - Granularity: 1m, 3m, 5m, 15m, 30m, 1H, 4H, 6H, 12H, 1D
+	// (+ undocumented 2H, 3D, 1W, 1M and 6Hutc, 12Hutc, 1Dutc, 3Dutc, 1Wutc, 1Mutc - see the note above)
 	Interval Interval
 	// StartTime - Start timestamp, unix ms, exclusive: candles with ts > startTime (verified live)
 	StartTime int64 `url:",omitempty"`

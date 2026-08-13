@@ -278,7 +278,10 @@ func TestGetCandles(t *testing.T) {
 		name       string
 		req        GetCandles
 		intervalMs int64
-		// alignOffsetMs - candle start alignment offset: daily candles open at 00:00 UTC+8
+		// alignOffsetMs - candle start alignment offset: (ts+alignOffsetMs) % intervalMs == 0,
+		// e.g. 8h for intervals opening on the UTC+8 grid.
+		// With intervalMs == 0 the interval is a calendar month: candles open on the 1st at
+		// 00:00 in the timezone UTC+alignOffsetMs
 		alignOffsetMs int64
 		wantLen       int
 		fresh         bool
@@ -307,6 +310,84 @@ func TestGetCandles(t *testing.T) {
 			req:           GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval1D},
 			intervalMs:    dayMs,
 			alignOffsetMs: 8 * 3_600_000,
+		},
+		{
+			// undocumented interval (inherited from the v2 API): UTC-aligned natively
+			name:       "2H undocumented",
+			req:        GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval2H, Limit: 5},
+			intervalMs: 2 * 3_600_000,
+			wantLen:    5,
+		},
+		{
+			name:          "6H utc+8 grid",
+			req:           GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval6H, Limit: 5},
+			intervalMs:    6 * 3_600_000,
+			alignOffsetMs: 8 * 3_600_000,
+			wantLen:       5,
+		},
+		{
+			// undocumented utc variant: opens on the UTC grid unlike native 6H (UTC+8)
+			name:       "6Hutc undocumented",
+			req:        GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval6Hutc, Limit: 5},
+			intervalMs: 6 * 3_600_000,
+			wantLen:    5,
+		},
+		{
+			// undocumented utc variant: opens on the UTC grid unlike native 12H (UTC+8)
+			name:       "12Hutc undocumented",
+			req:        GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval12Hutc, Limit: 5},
+			intervalMs: 12 * 3_600_000,
+			wantLen:    5,
+		},
+		{
+			// undocumented utc variant: opens 00:00 UTC unlike native 1D (00:00 UTC+8)
+			name:       "1Dutc undocumented",
+			req:        GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval1Dutc, Limit: 5},
+			intervalMs: dayMs,
+			wantLen:    5,
+		},
+		{
+			// undocumented: 3-day candles on the UTC+8 grid
+			name:          "3D undocumented",
+			req:           GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval3D, Limit: 5},
+			intervalMs:    3 * dayMs,
+			alignOffsetMs: 8 * 3_600_000,
+			wantLen:       5,
+		},
+		{
+			name:       "3Dutc undocumented",
+			req:        GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval3Dutc, Limit: 5},
+			intervalMs: 3 * dayMs,
+			wantLen:    5,
+		},
+		{
+			// undocumented: weekly candles open Monday 00:00 UTC+8 = Sunday 16:00 UTC;
+			// the unix epoch is Thursday 00:00 UTC, hence the 80h shift to the week grid
+			name:          "1W undocumented",
+			req:           GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval1W, Limit: 5},
+			intervalMs:    7 * dayMs,
+			alignOffsetMs: 80 * 3_600_000,
+			wantLen:       5,
+		},
+		{
+			// undocumented: weekly candles open Monday 00:00 UTC (epoch Thursday -> 72h shift)
+			name:          "1Wutc undocumented",
+			req:           GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval1Wutc, Limit: 5},
+			intervalMs:    7 * dayMs,
+			alignOffsetMs: 72 * 3_600_000,
+			wantLen:       5,
+		},
+		{
+			// undocumented: monthly candles open on the 1st at 00:00 UTC+8
+			// (no wantLen: the v3 monthly history is shallow and may hold fewer rows than the limit)
+			name:          "1M undocumented",
+			req:           GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval1M, Limit: 5},
+			alignOffsetMs: 8 * 3_600_000,
+		},
+		{
+			// undocumented: monthly candles open on the 1st at 00:00 UTC
+			name: "1Mutc undocumented",
+			req:  GetCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval1Mutc, Limit: 5},
 		},
 		{
 			name:       "mark price",
@@ -358,8 +439,16 @@ func TestGetCandles(t *testing.T) {
 				if v.Low > v.Open || v.Low > v.Close {
 					t.Fatalf("candle %d: expected low %v <= open %v and close %v", i, v.Low, v.Open, v.Close)
 				}
-				if (v.Ts+tt.alignOffsetMs)%tt.intervalMs != 0 {
-					t.Fatalf("candle %d: expected ts %v aligned to interval %v ms", i, v.Ts, tt.intervalMs)
+				if tt.intervalMs != 0 {
+					if (v.Ts+tt.alignOffsetMs)%tt.intervalMs != 0 {
+						t.Fatalf("candle %d: expected ts %v aligned to interval %v ms", i, v.Ts, tt.intervalMs)
+					}
+				} else {
+					// calendar month: candle opens on the 1st at 00:00 in the timezone UTC+alignOffsetMs
+					s := time.UnixMilli(v.Ts).In(time.FixedZone("", int(tt.alignOffsetMs/1000)))
+					if s.Day() != 1 || s.Hour() != 0 || s.Minute() != 0 || s.Second() != 0 {
+						t.Fatalf("candle %d: expected month start, got %v", i, s)
+					}
 				}
 				if i > 0 && v.Ts <= r.Data[i-1].Ts {
 					t.Fatalf("candle %d: expected ascending ts, got %v after %v", i, v.Ts, r.Data[i-1].Ts)
