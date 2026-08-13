@@ -43,3 +43,19 @@ const (
 	// Interval1D - 1 day
 	Interval1D Interval = "1D"
 )
+
+// CandleType - Candlestick price source
+// For rtoken symbols only market is supported: mark/index/premium silently fall back to market
+// https://www.bitget.com/api-doc/uta/public/Get-Candle-Data
+type CandleType string
+
+const (
+	// CandleMarket - Market price candles (default)
+	CandleMarket CandleType = "market"
+	// CandleMark - Mark price candles (futures only; volume/turnover are 0, verified live)
+	CandleMark CandleType = "mark"
+	// CandleIndex - Index price candles (futures only)
+	CandleIndex CandleType = "index"
+	// CandlePremium - Premium index price candles (futures only)
+	CandlePremium CandleType = "premium"
+)

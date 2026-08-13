@@ -1,6 +1,9 @@
 package bitgetv3
 
 import (
+	"fmt"
+	"strconv"
+
 	"github.com/msw-x/moon/ujson"
 )
 
@@ -346,4 +349,99 @@ type TickerSpot struct {
 	PlatformTurnover24h ujson.Float64
 	// Ts - The timestamp that the system generated the data, unix millisecond timestamp
 	Ts ujson.Int64
+}
+
+// GetCandles - request for GET /api/v3/market/candles (UTA)
+// https://www.bitget.com/api-doc/uta/public/Get-Candle-Data
+//
+//	category  Required string Product type: SPOT, USDT-FUTURES, COIN-FUTURES, USDC-FUTURES
+//	symbol    Required string Symbol name, e.g. BTCUSDT
+//	interval  Required string Granularity: 1m, 3m, 5m, 15m, 30m, 1H, 4H, 6H, 12H, 1D
+//	startTime          string Start timestamp, unix ms
+//	endTime            string End timestamp, unix ms
+//	type               string Candlestick type: market (default), mark, index, premium
+//	limit              string Limit per page
+//
+// rtoken symbols support only the market type (mark/index/premium silently fall back to market)
+// and only the 1m, 5m, 15m, 1H, 4H, 1D intervals (others return a parameter error)
+type GetCandles struct {
+	// Category - Product type: SPOT, USDT-FUTURES, COIN-FUTURES, USDC-FUTURES (MARGIN is not supported)
+	Category Category
+	// Symbol - Symbol name, e.g. BTCUSDT
+	Symbol string
+	// Interval - Granularity: 1m, 3m, 5m, 15m, 30m, 1H, 4H, 6H, 12H, 1D
+	Interval Interval
+	// StartTime - Start timestamp, unix ms, exclusive: candles with ts > startTime (verified live)
+	StartTime int64 `url:",omitempty"`
+	// EndTime - End timestamp, unix ms, inclusive: candles with ts <= endTime (verified live)
+	EndTime int64 `url:",omitempty"`
+	// Type - Candlestick type: market (default), mark, index, premium
+	Type CandleType `url:",omitempty"`
+	// Limit - Limit per page: default 100, maximum 1000, above 1000 -> parameter error 40020
+	// (verified live; the docs table swaps default and maximum)
+	Limit int `url:",omitempty"`
+}
+
+func (o GetCandles) Do(c *Client) Response[[]Candle] {
+	return GetPub(c.market(), "candles", o, func(l [][]string) ([]Candle, error) {
+		return transformList(l, unmarshalCandle)
+	})
+}
+
+func (o *Client) GetCandles(v GetCandles) Response[[]Candle] {
+	return v.Do(o)
+}
+
+// Candle - item in GET /api/v3/market/candles response: [ts, open, high, low, close, volume, turnover]
+// Every element arrives as a JSON string; the row shape is the same for all categories
+// Rows are sorted oldest-first (verified live)
+// https://www.bitget.com/api-doc/uta/public/Get-Candle-Data
+type Candle struct {
+	// Ts - Candle start timestamp, unix ms; daily candles open at 00:00 UTC+8 (16:00 UTC, verified live)
+	Ts int64
+	// Open - Open price
+	Open float64
+	// High - Highest price
+	High float64
+	// Low - Lowest price
+	Low float64
+	// Close - Close price
+	Close float64
+	// Volume - Trade volume, base coin
+	Volume float64
+	// Turnover - Turnover, quote coin
+	Turnover float64
+}
+
+// unmarshalCandle - parse one candle row of 7 strings
+func unmarshalCandle(s []string) (r Candle, err error) {
+	if len(s) != 7 {
+		err = fmt.Errorf("candle row length is %d, expected 7", len(s))
+		return
+	}
+	r.Ts, err = strconv.ParseInt(s[0], 10, 64)
+	if err != nil {
+		err = fmt.Errorf("candle ts: %w", err)
+		return
+	}
+	fields := []struct {
+		name string
+		p    *float64
+		s    string
+	}{
+		{"open", &r.Open, s[1]},
+		{"high", &r.High, s[2]},
+		{"low", &r.Low, s[3]},
+		{"close", &r.Close, s[4]},
+		{"volume", &r.Volume, s[5]},
+		{"turnover", &r.Turnover, s[6]},
+	}
+	for _, f := range fields {
+		*f.p, err = strconv.ParseFloat(f.s, 64)
+		if err != nil {
+			err = fmt.Errorf("candle %s: %w", f.name, err)
+			return
+		}
+	}
+	return
 }
