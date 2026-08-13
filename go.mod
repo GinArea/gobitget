@@ -4,13 +4,15 @@ go 1.21
 
 toolchain go1.21.3
 
-require github.com/msw-x/moon v0.7.75
+require (
+	github.com/gorilla/websocket v1.5.1
+	github.com/msw-x/moon v0.7.75
+)
 
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/tklauser/go-sysconf v0.3.13 // indirect
