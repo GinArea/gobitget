@@ -105,6 +105,16 @@ func TestWsRequestMarshal(t *testing.T) {
 			},
 			want: `{"op":"subscribe","args":[{"instType":"usdt-futures","topic":"ticker","symbol":"BTCUSDT"},{"instType":"usdt-futures","topic":"ticker","symbol":"ETHUSDT"}]}`,
 		},
+		{
+			// interval is added for kline and keeps its case (1D, not 1d),
+			// verbatim request example from the Candlesticks Channel docs
+			name: "subscribe kline",
+			req: WsRequest{
+				Op:   "subscribe",
+				Args: []SubscriptionArgs{{InstType: "spot", Topic: "kline", Symbol: "BTCUSDT", Interval: "1D"}},
+			},
+			want: `{"op":"subscribe","args":[{"instType":"spot","topic":"kline","symbol":"BTCUSDT","interval":"1D"}]}`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -146,6 +156,15 @@ func TestWsResponseClassify(t *testing.T) {
 			wantEvent:       true,
 			wantUnsubscribe: true,
 			wantArg:         SubscriptionArgs{InstType: "usdt-futures", Topic: "ticker", Symbol: "BTCUSDT"},
+		},
+		{
+			// verbatim from https://www.bitget.com/api-doc/uta/websocket/public/Candlesticks-Channel
+			// the kline ack echoes the interval in arg
+			name:          "kline subscribe ack",
+			data:          `{"event":"subscribe","arg":{"instType":"spot","topic":"kline","symbol":"BTCUSDT","interval":"1D"},"connId":"xxxxxxxxxx"}`,
+			wantEvent:     true,
+			wantSubscribe: true,
+			wantArg:       SubscriptionArgs{InstType: "spot", Topic: "kline", Symbol: "BTCUSDT", Interval: "1D"},
 		},
 		{
 			// verbatim error example from https://www.bitget.com/api-doc/uta/guide (code as a string)
@@ -202,12 +221,49 @@ func TestWsResponseClassify(t *testing.T) {
 	}
 }
 
-// testShot - neutral payload for infrastructure tests of the topic envelope
-type testShot struct {
-	LastPrice ujson.Float64
-}
+func TestUnmarshalRawTopicTicker(t *testing.T) {
+	// verbatim spot push example from https://www.bitget.com/api-doc/uta/websocket/public/Tickers-Channel
+	spotPush := `{
+		"data": [
+			{
+				"bid1Price": "99999",
+				"lowPrice24h": "98200",
+				"ask1Size": "188.312553",
+				"volume24h": "37.722858",
+				"price24hPcnt": "0.01833",
+				"highPrice24h": "100000",
+				"turnover24h": "3750302.979626",
+				"bid1Size": "186.183209",
+				"ask1Price": "100000",
+				"openPrice24h": "0",
+				"lastPrice": "100000",
+				"platformTurnover24h": "677732572.225658"
+			}
+		],
+		"arg": {"instType": "spot","symbol": "BTCUSDT","topic": "ticker"},
+		"action": "snapshot",
+		"ts": 1736371332162
+	}`
+	// futures push carries extra fields (the docs give no futures sample, fields per the parameter table)
+	futuresPush := `{
+		"data": [
+			{
+				"lastPrice": "99756.7",
+				"bid1Price": "99756.6",
+				"ask1Price": "99756.7",
+				"indexPrice": "99750.1",
+				"markPrice": "99755.0",
+				"fundingRate": "0.0001",
+				"nextFundingTime": "1746698732562",
+				"openInterest": "12345.678",
+				"deliveryStatus": "normal"
+			}
+		],
+		"arg": {"instType": "usdt-futures","symbol": "BTCUSDT","topic": "ticker"},
+		"action": "snapshot",
+		"ts": 1746698732563
+	}`
 
-func TestUnmarshalRawTopic(t *testing.T) {
 	tests := []struct {
 		name    string
 		data    string
@@ -215,13 +271,67 @@ func TestUnmarshalRawTopic(t *testing.T) {
 		wantArg SubscriptionArgs
 		wantTs  int64
 		wantLen int
+		check   func(t *testing.T, v WsTicker)
 	}{
 		{
-			name:    "snapshot",
-			data:    `{"data":[{"lastPrice":"100000"}],"arg":{"instType":"spot","symbol":"BTCUSDT","topic":"ticker"},"action":"snapshot","ts":1736371332162}`,
+			name:    "spot snapshot",
+			data:    spotPush,
 			wantArg: SubscriptionArgs{InstType: "spot", Topic: "ticker", Symbol: "BTCUSDT"},
 			wantTs:  1736371332162,
 			wantLen: 1,
+			check: func(t *testing.T, v WsTicker) {
+				if v.LastPrice.Value() != 100000 {
+					t.Fatalf("expected lastPrice 100000, got %v", v.LastPrice.Value())
+				}
+				if v.Bid1Price.Value() != 99999 {
+					t.Fatalf("expected bid1Price 99999, got %v", v.Bid1Price.Value())
+				}
+				if v.Ask1Price.Value() != 100000 {
+					t.Fatalf("expected ask1Price 100000, got %v", v.Ask1Price.Value())
+				}
+				if v.Bid1Size.Value() != 186.183209 {
+					t.Fatalf("expected bid1Size 186.183209, got %v", v.Bid1Size.Value())
+				}
+				if v.Volume24h.Value() != 37.722858 {
+					t.Fatalf("expected volume24h 37.722858, got %v", v.Volume24h.Value())
+				}
+				if v.Price24hPcnt.Value() != 0.01833 {
+					t.Fatalf("expected price24hPcnt 0.01833, got %v", v.Price24hPcnt.Value())
+				}
+				if v.OpenPrice24h.Value() != 0 {
+					t.Fatalf("expected openPrice24h 0, got %v", v.OpenPrice24h.Value())
+				}
+				if v.MarkPrice.Value() != 0 {
+					t.Fatalf("expected empty markPrice on spot, got %v", v.MarkPrice.Value())
+				}
+			},
+		},
+		{
+			name:    "futures snapshot",
+			data:    futuresPush,
+			wantArg: SubscriptionArgs{InstType: "usdt-futures", Topic: "ticker", Symbol: "BTCUSDT"},
+			wantTs:  1746698732563,
+			wantLen: 1,
+			check: func(t *testing.T, v WsTicker) {
+				if v.MarkPrice.Value() != 99755.0 {
+					t.Fatalf("expected markPrice 99755.0, got %v", v.MarkPrice.Value())
+				}
+				if v.IndexPrice.Value() != 99750.1 {
+					t.Fatalf("expected indexPrice 99750.1, got %v", v.IndexPrice.Value())
+				}
+				if v.FundingRate.Value() != 0.0001 {
+					t.Fatalf("expected fundingRate 0.0001, got %v", v.FundingRate.Value())
+				}
+				if v.NextFundingTime.Value() != 1746698732562 {
+					t.Fatalf("expected nextFundingTime 1746698732562, got %v", v.NextFundingTime.Value())
+				}
+				if v.OpenInterest.Value() != 12345.678 {
+					t.Fatalf("expected openInterest 12345.678, got %v", v.OpenInterest.Value())
+				}
+				if v.DeliveryStatus != "normal" {
+					t.Fatalf("expected deliveryStatus normal, got %s", v.DeliveryStatus)
+				}
+			},
 		},
 		{
 			name:    "empty data",
@@ -243,7 +353,7 @@ func TestUnmarshalRawTopic(t *testing.T) {
 			if err := json.Unmarshal([]byte(tt.data), &raw); err != nil {
 				t.Fatalf("unmarshal raw topic failed: %v", err)
 			}
-			topic, err := UnmarshalRawTopic[[]testShot](raw)
+			topic, err := UnmarshalRawTopic[[]WsTicker](raw)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got success")
@@ -265,8 +375,115 @@ func TestUnmarshalRawTopic(t *testing.T) {
 			if len(topic.Data) != tt.wantLen {
 				t.Fatalf("expected %d items, got %d", tt.wantLen, len(topic.Data))
 			}
-			if tt.wantLen > 0 && topic.Data[0].LastPrice.Value() != 100000 {
-				t.Fatalf("expected lastPrice 100000, got %v", topic.Data[0].LastPrice.Value())
+			if tt.check != nil {
+				tt.check(t, topic.Data[0])
+			}
+		})
+	}
+}
+
+func TestUnmarshalRawTopicCandle(t *testing.T) {
+	// verbatim push example from https://www.bitget.com/api-doc/uta/websocket/public/Candlesticks-Channel
+	klinePush := `{
+		"data": [
+			{
+				"volume": "0.423",
+				"high": "400005",
+				"low": "276670",
+				"start": "1710518400000",
+				"close": "400005",
+				"turnover": "148190.38375",
+				"open": "276670"
+			}
+		],
+		"arg": {"instType": "spot","symbol": "BTCUSDT","topic": "kline","interval": "1D"},
+		"action": "snapshot",
+		"ts": 1736370735556
+	}`
+
+	tests := []struct {
+		name    string
+		data    string
+		wantErr bool
+		wantArg SubscriptionArgs
+		wantTs  int64
+		wantLen int
+		check   func(t *testing.T, v WsCandle)
+	}{
+		{
+			name:    "spot snapshot",
+			data:    klinePush,
+			wantArg: SubscriptionArgs{InstType: "spot", Topic: "kline", Symbol: "BTCUSDT", Interval: "1D"},
+			wantTs:  1736370735556,
+			wantLen: 1,
+			check: func(t *testing.T, v WsCandle) {
+				if v.Start.Value() != 1710518400000 {
+					t.Fatalf("expected start 1710518400000, got %v", v.Start.Value())
+				}
+				if v.Open.Value() != 276670 {
+					t.Fatalf("expected open 276670, got %v", v.Open.Value())
+				}
+				if v.High.Value() != 400005 {
+					t.Fatalf("expected high 400005, got %v", v.High.Value())
+				}
+				if v.Low.Value() != 276670 {
+					t.Fatalf("expected low 276670, got %v", v.Low.Value())
+				}
+				if v.Close.Value() != 400005 {
+					t.Fatalf("expected close 400005, got %v", v.Close.Value())
+				}
+				if v.Volume.Value() != 0.423 {
+					t.Fatalf("expected volume 0.423, got %v", v.Volume.Value())
+				}
+				if v.Turnover.Value() != 148190.38375 {
+					t.Fatalf("expected turnover 148190.38375, got %v", v.Turnover.Value())
+				}
+			},
+		},
+		{
+			name:    "empty data",
+			data:    `{"data":[],"arg":{"instType":"spot","symbol":"BTCUSDT","topic":"kline","interval":"1m"},"action":"snapshot","ts":1736370735556}`,
+			wantArg: SubscriptionArgs{InstType: "spot", Topic: "kline", Symbol: "BTCUSDT", Interval: "1m"},
+			wantTs:  1736370735556,
+			wantLen: 0,
+		},
+		{
+			name:    "invalid payload type",
+			data:    `{"data":123,"arg":{"instType":"spot","symbol":"BTCUSDT","topic":"kline","interval":"1m"},"action":"snapshot","ts":1736370735556}`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var raw RawTopic
+			if err := json.Unmarshal([]byte(tt.data), &raw); err != nil {
+				t.Fatalf("unmarshal raw topic failed: %v", err)
+			}
+			topic, err := UnmarshalRawTopic[[]WsCandle](raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got success")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unmarshal topic failed: %v", err)
+			}
+			if topic.Arg != tt.wantArg {
+				t.Fatalf("expected arg %+v, got %+v", tt.wantArg, topic.Arg)
+			}
+			if topic.Action != "snapshot" {
+				t.Fatalf("expected action snapshot, got %s", topic.Action)
+			}
+			if topic.Ts.Value() != tt.wantTs {
+				t.Fatalf("expected ts %d, got %v", tt.wantTs, topic.Ts.Value())
+			}
+			if len(topic.Data) != tt.wantLen {
+				t.Fatalf("expected %d items, got %d", tt.wantLen, len(topic.Data))
+			}
+			if tt.check != nil {
+				tt.check(t, topic.Data[0])
 			}
 		})
 	}
@@ -294,6 +511,12 @@ func (o *fakeSubscriptionClient) unsubscribe(args ...SubscriptionArgs) {
 func tickerPush(instType, symbol string) []byte {
 	return []byte(`{"data":[{"lastPrice":"100000"}],"arg":{"instType":"` + instType +
 		`","symbol":"` + symbol + `","topic":"ticker"},"action":"snapshot","ts":1736371332162}`)
+}
+
+func klinePush(instType, symbol, interval string) []byte {
+	return []byte(`{"data":[{"open":"100000","close":"100001"}],"arg":{"instType":"` + instType +
+		`","symbol":"` + symbol + `","topic":"kline","interval":"` + interval +
+		`"},"action":"snapshot","ts":1736371332162}`)
 }
 
 func TestSubscriptions(t *testing.T) {
@@ -406,7 +629,7 @@ func TestSubscriptions(t *testing.T) {
 		c := &fakeSubscriptionClient{ready: true}
 		s := NewSubscriptions(c)
 		var got int
-		NewExecutor[[]testShot](argsBtc, s).Subscribe(func(Topic[[]testShot]) { got++ })
+		NewExecutor[[]WsTicker](argsBtc, s).Subscribe(func(Topic[[]WsTicker]) { got++ })
 		bad := []byte(`{"data":123,"arg":{"instType":"usdt-futures","symbol":"BTCUSDT","topic":"ticker"},"action":"snapshot","ts":1}`)
 		if err := s.processTopic(bad); err == nil {
 			t.Fatal("expected unmarshal error")
@@ -424,6 +647,57 @@ func TestSubscriptions(t *testing.T) {
 		}
 	})
 
+	t.Run("route by interval", func(t *testing.T) {
+		args1m := wsArgs("kline", UsdtFutures, "BTCUSDT")
+		args1m.Interval = "1m"
+		args1d := wsArgs("kline", UsdtFutures, "BTCUSDT")
+		args1d.Interval = "1D"
+		c := &fakeSubscriptionClient{ready: true}
+		s := NewSubscriptions(c)
+		var got1m, got1d int
+		s.subscribe(args1m, func(RawTopic) error { got1m++; return nil })
+		s.subscribe(args1d, func(RawTopic) error { got1d++; return nil })
+		if err := s.processTopic(klinePush("usdt-futures", "BTCUSDT", "1m")); err != nil {
+			t.Fatalf("expected 1m topic routed, got error: %v", err)
+		}
+		// the interval echo matches case-insensitively, like the other arg fields
+		if err := s.processTopic(klinePush("usdt-futures", "BTCUSDT", "1d")); err != nil {
+			t.Fatalf("expected 1d topic routed, got error: %v", err)
+		}
+		if got1m != 1 || got1d != 1 {
+			t.Fatalf("expected each handler called once, got 1m=%d 1d=%d", got1m, got1d)
+		}
+	})
+
+	t.Run("interval mismatch", func(t *testing.T) {
+		args1m := wsArgs("kline", UsdtFutures, "BTCUSDT")
+		args1m.Interval = "1m"
+		c := &fakeSubscriptionClient{ready: true}
+		s := NewSubscriptions(c)
+		s.subscribe(args1m, noop)
+		if err := s.processTopic(klinePush("usdt-futures", "BTCUSDT", "5m")); err == nil {
+			t.Fatal("expected not found error for unsubscribed interval")
+		}
+	})
+
+	t.Run("kline and ticker independent", func(t *testing.T) {
+		argsKline := wsArgs("kline", UsdtFutures, "BTCUSDT")
+		argsKline.Interval = "1m"
+		c := &fakeSubscriptionClient{ready: true}
+		s := NewSubscriptions(c)
+		var gotTicker, gotKline int
+		s.subscribe(argsBtc, func(RawTopic) error { gotTicker++; return nil })
+		s.subscribe(argsKline, func(RawTopic) error { gotKline++; return nil })
+		if err := s.processTopic(tickerPush("usdt-futures", "BTCUSDT")); err != nil {
+			t.Fatalf("expected ticker topic routed, got error: %v", err)
+		}
+		if err := s.processTopic(klinePush("usdt-futures", "BTCUSDT", "1m")); err != nil {
+			t.Fatalf("expected kline topic routed, got error: %v", err)
+		}
+		if gotTicker != 1 || gotKline != 1 {
+			t.Fatalf("expected each handler called once, got ticker=%d kline=%d", gotTicker, gotKline)
+		}
+	})
 }
 
 func TestWsClientOnMessage(t *testing.T) {

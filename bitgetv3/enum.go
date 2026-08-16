@@ -17,9 +17,8 @@ const (
 	UsdcFutures Category = "USDC-FUTURES"
 )
 
-// Interval - Candlestick interval; case matters: minutes are lowercase, hours/days are uppercase.
-// Used by REST GetCandles and by the v2 WS candle channel (WsPublicV2.Candle)
-// https://www.bitget.com/api-doc/uta/public/Get-Candle-Data
+// Interval - Candlestick interval; case matters: minutes are lowercase, hours/days are uppercase
+// https://www.bitget.com/api-doc/uta/websocket/public/Candlesticks-Channel
 type Interval string
 
 const (
@@ -50,9 +49,9 @@ const (
 	// (weeks on Monday, months on the 1st), the utc-suffixed variants - on the UTC grid.
 	// Intervals up to 4H need no utc variant: their period divides the 8-hour offset, so both grids coincide.
 	// 3H, 8H, 1Hutc and 4Hutc do NOT exist (parameter error 40020).
-	// The v3 WS kline channel accepts just the 10 documented values and rejects everything else with
-	// error 30001 (verified live); the legacy v2 WS supports all of them, which is why candle streaming
-	// in this library goes through WsPublicV2. See BITGET_API.md for the full reference table.
+	// The extended values are REST-only: the v3 WS kline channel accepts just the 10 documented values
+	// and rejects everything else with error 30001 (verified live; the legacy v2 WS does support them).
+	// See BITGET_API.md for the full interval/alignment reference table.
 
 	// Interval2H - 2 hours (UTC-aligned)
 	Interval2H Interval = "2H"
