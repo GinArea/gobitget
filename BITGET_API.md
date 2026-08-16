@@ -51,8 +51,9 @@ the `utc` suffix is lowercase (`1Dutc`).
 
 ### WebSocket kline channel
 
-The WS Candlesticks Channel (`topic: kline`) documents only the 10 base intervals.
-The extended/utc values above are verified for **REST only**.
+The v3 WS Candlesticks Channel (`topic: kline`) accepts **only** the 10 documented base intervals —
+the extended/utc values above are REST-only. For other timeframes over WS use the legacy v2 WS
+(see "WebSocket kline intervals: v3 vs legacy v2" below).
 
 ---
 
@@ -69,6 +70,59 @@ The extended/utc values above are verified for **REST only**.
 - **History depth** is limited and varies by interval: e.g. 1m candles are unavailable a few
   months back, and the monthly (`1M`) history of BTCUSDT USDT-FUTURES held only 4 rows —
   a request may return fewer rows than `limit` without an error.
+
+## WebSocket kline intervals: v3 vs legacy v2
+
+Verified live 2026-08-16 on SPOT and USDT-FUTURES (BTCUSDT), every result reproduced on a second run.
+
+### v3 WS (`wss://ws.bitget.com/v3/ws/public`, topic `kline`)
+
+Accepts **only** the 10 documented intervals: `1m, 3m, 5m, 15m, 30m, 1H, 4H, 6H, 12H, 1D`.
+Every other value — `2H`, the utc-suffixed variants (`6Hutc`/`12Hutc`/`1Dutc`/...), `3D`, `1W`,
+`1M`, `3H`, `8H` and any case variant (`2h`, `1DUTC`, `1dutc`, `12hutc`) — is rejected with
+error `30001` `"{...} doesn't exist"`. Unlike REST, the v3 WS does **not** inherit the v2 values.
+Native `6H`/`12H`/`1D` open on the UTC+8 grid, same as REST (confirmed on WS).
+
+Consequence: over the v3 WS, UTC-aligned candles exist only for intervals up to `4H`.
+
+### Legacy v2 WS (`wss://ws.bitget.com/v2/ws/public`, channel `candle<tf>`)
+
+Subscription format (differs from v3):
+
+```json
+{"op":"subscribe","args":[{"instType":"SPOT","channel":"candle1Dutc","instId":"BTCUSDT"}]}
+```
+
+Accepted channels (both SPOT and USDT-FUTURES):
+
+| Channels | Grid |
+|----------|------|
+| `candle1m, 3m, 5m, 15m, 30m, 1H, 2H, 4H, 8H` | UTC-aligned (period divides 8h; note `8H`: 00/08/16 UTC) |
+| `candle6H, 12H, 1D, 3D, 1W, 1M` | UTC+8 grid (weeks Monday, months 1st, 00:00 UTC+8) |
+| `candle6Hutc, 12Hutc, 1Dutc, 3Dutc, 1Wutc, 1Mutc` | UTC grid (weeks Monday, months 1st, 00:00 UTC) |
+
+Rejected: `candle3H` — error `30016` `"Param error"` (note: a different code than the v3 WS 30001).
+`8H` exists on the v2 WS but NOT in the v3 REST/WS at all.
+
+v2 push format: same envelope shape (`arg`/`action`/`data`, `snapshot` then `update`), keepalive is
+the same text `ping`/`pong`. The initial snapshot carries history like v3 (500 rows or the full
+available depth, oldest-first, current candle last). Rows are arrays of **8 strings**:
+`[ts, open, high, low, close, baseVolume, quoteVolume, usdtVolume]` — the field order was
+disambiguated on a BTC-quoted pair (ETHBTC): index 6 is the quote-coin volume, index 7 the USDT
+volume (they coincide for USDT-quoted symbols). Ack and error events echo the numeric `code`
+(e.g. 30016) like v3. In `bitgetv3` this WS is wrapped by `WsPublicV2` (`ws_public_v2.go`).
+
+### UTC-aligned WS candles: which source to use per timeframe
+
+| Timeframe | v3 WS (`kline` interval) | Legacy v2 WS channel |
+|-----------|--------------------------|----------------------|
+| 1m–30m, 1H, 4H | native value (UTC-aligned) | `candle<tf>` (UTC-aligned) |
+| 2h | — (rejected) | **`candle2H`** |
+| 6h UTC | — (`6H` is UTC+8) | **`candle6Hutc`** |
+| 8h | — | **`candle8H`** |
+| 12h UTC | — (`12H` is UTC+8) | **`candle12Hutc`** |
+| 1D UTC | — (`1D` opens 16:00 UTC) | **`candle1Dutc`** |
+| 3D / 1W / 1M UTC | — | **`candle3Dutc` / `candle1Wutc` / `candle1Mutc`** |
 
 ## WebSocket Candlesticks Channel quirks
 

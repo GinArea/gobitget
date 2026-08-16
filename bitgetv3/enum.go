@@ -49,11 +49,14 @@ const (
 	// (weeks on Monday, months on the 1st), the utc-suffixed variants - on the UTC grid.
 	// Intervals up to 4H need no utc variant: their period divides the 8-hour offset, so both grids coincide.
 	// 3H, 8H, 1Hutc and 4Hutc do NOT exist (parameter error 40020).
-	// The WS kline channel documents only the 10 values above; the extended values are verified for REST only.
+	// The extended values are REST-only: the v3 WS kline channel accepts just the 10 documented values
+	// and rejects everything else with error 30001 (verified live; the legacy v2 WS does support them).
 	// See BITGET_API.md for the full interval/alignment reference table.
 
 	// Interval2H - 2 hours (UTC-aligned)
 	Interval2H Interval = "2H"
+	// Interval8H - 8 hours (UTC-aligned), exists ONLY on the legacy v2 WS (rejected by REST and v3 WS)
+	Interval8H Interval = "8H"
 	// Interval3D - 3 days, opens 00:00 UTC+8
 	Interval3D Interval = "3D"
 	// Interval1W - 1 week, opens Monday 00:00 UTC+8 (Sunday 16:00 UTC)
