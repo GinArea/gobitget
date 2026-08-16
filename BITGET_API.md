@@ -84,6 +84,9 @@ error `30001` `"{...} doesn't exist"`. Unlike REST, the v3 WS does **not** inher
 Native `6H`/`12H`/`1D` open on the UTC+8 grid, same as REST (confirmed on WS).
 
 Consequence: over the v3 WS, UTC-aligned candles exist only for intervals up to `4H`.
+For this reason `bitgetv3` deliberately does not wrap the v3 kline channel (the v3 ticker
+channel IS wrapped): WS candle streaming goes exclusively through the legacy v2 WS
+(`WsPublicV2.Candle`).
 
 ### Legacy v2 WS (`wss://ws.bitget.com/v2/ws/public`, channel `candle<tf>`)
 

@@ -43,7 +43,8 @@ func TestWsCandleV2(t *testing.T) {
 		intervalMs int64
 		// maxAge - how old the current candle start may be
 		maxAge time.Duration
-		// second - expect a second push shortly (once per second while trades occur)
+		// second - expect a follow-up push: pushes come once per second while trades occur,
+		// but quiet stretches happen (especially on spot), hence the generous wait
 		second bool
 	}{
 		{
@@ -148,7 +149,7 @@ func TestWsCandleV2(t *testing.T) {
 				t.Fatalf("expected fresh ts, got age %v", age)
 			}
 			if tt.second {
-				waitCandleV2(t, ch, 10*time.Second)
+				waitCandleV2(t, ch, 30*time.Second)
 			}
 			t.Logf("snapshot of %d candles; last: start %v, o %v, h %v, l %v, c %v, vol %v, ts age %v",
 				len(v.Data), time.UnixMilli(d.Start.Value()).UTC().Format("2006-01-02 15:04:05"),

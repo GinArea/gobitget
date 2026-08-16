@@ -76,26 +76,3 @@ type WsTicker struct {
 	// DeliveryStatus - Delivery status: configuration / normal / before / period (delivery futures only)
 	DeliveryStatus string
 }
-
-// WsCandle - item of Candlestick Channel push data; every field arrives as a JSON string
-// The symbol and interval are not repeated here: they come only in the topic arg
-// Pushed once per second while trades occur, else once per interval
-// The initial snapshot carries recent candle history (~500 items) sorted oldest-first,
-// so the current candle is the last item (verified live; the docs show a single item only)
-// https://www.bitget.com/api-doc/uta/websocket/public/Candlesticks-Channel
-type WsCandle struct {
-	// Start - Candle start timestamp, unix ms
-	Start ujson.Int64
-	// Open - Open price
-	Open ujson.Float64
-	// High - Highest price
-	High ujson.Float64
-	// Low - Lowest price
-	Low ujson.Float64
-	// Close - Close price
-	Close ujson.Float64
-	// Volume - Trade volume, base coin (absent for rtoken 1m -> 0)
-	Volume ujson.Float64
-	// Turnover - Turnover, quote coin (absent for rtoken 1m -> 0)
-	Turnover ujson.Float64
-}
