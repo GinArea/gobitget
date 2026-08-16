@@ -5,7 +5,10 @@ import (
 )
 
 // WsPublic - public WebSocket client (UTA)
-// A single endpoint serves all product types: the category is passed per subscription
+// A single endpoint serves all product types: the category is passed per subscription.
+// No topic factories yet: candle streaming deliberately goes through the legacy v2 client
+// (WsPublicV2) because the v3 kline channel lacks the required timeframes - see BITGET_API.md;
+// future public channels (e.g. depth) will be added here
 // https://www.bitget.com/api-doc/uta/guide
 type WsPublic struct {
 	WsBase
@@ -63,21 +66,4 @@ func (o *WsPublic) WithOnReady(f func()) *WsPublic {
 func (o *WsPublic) WithOnError(f func(WsResponse)) *WsPublic {
 	o.setOnError(f)
 	return o
-}
-
-// Topic subscriptions
-
-// Ticker - live price/24h-stats stream, push every 200-300ms (spot) / 300-400ms (futures)
-// https://www.bitget.com/api-doc/uta/websocket/public/Tickers-Channel
-func (o *WsPublic) Ticker(category Category, symbol string) *Executor[[]WsTicker] {
-	return NewExecutor[[]WsTicker](wsArgs("ticker", category, symbol), o.subscriptions)
-}
-
-// Candle - candlestick stream: pushed once per second while trades occur, else once per interval
-// The first push is a snapshot with recent candle history sorted oldest-first (the current candle is last)
-// https://www.bitget.com/api-doc/uta/websocket/public/Candlesticks-Channel
-func (o *WsPublic) Candle(category Category, symbol string, interval Interval) *Executor[[]WsCandle] {
-	args := wsArgs("kline", category, symbol)
-	args.Interval = string(interval)
-	return NewExecutor[[]WsCandle](args, o.subscriptions)
 }

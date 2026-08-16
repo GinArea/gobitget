@@ -59,8 +59,8 @@ func (o *Subscriptions) processTopic(data []byte) (err error) {
 	if err == nil {
 		f := o.getFunc(topic.Arg)
 		if f == nil {
-			err = fmt.Errorf("subscription of topic[%s %s %s %s] not found",
-				topic.Arg.InstType, topic.Arg.Topic, topic.Arg.Symbol, topic.Arg.Interval)
+			err = fmt.Errorf("subscription of topic[%s %s %s] not found",
+				topic.Arg.InstType, topic.Arg.Topic, topic.Arg.Symbol)
 		} else {
 			err = f(topic)
 		}
@@ -75,8 +75,7 @@ func (o *Subscriptions) getFunc(passed SubscriptionArgs) (f SubscriptionFunc) {
 	for args, fn := range o.funcs {
 		if strings.EqualFold(args.InstType, passed.InstType) &&
 			strings.EqualFold(args.Topic, passed.Topic) &&
-			strings.EqualFold(args.Symbol, passed.Symbol) &&
-			strings.EqualFold(args.Interval, passed.Interval) {
+			strings.EqualFold(args.Symbol, passed.Symbol) {
 			f = fn
 			break
 		}
