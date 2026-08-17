@@ -104,6 +104,12 @@ func (o *WsClient) Reconnect() {
 	o.c.Reconnect()
 }
 
+// Cancel - stop the reconnect loop without closing the client;
+// used to give up on unrecoverable errors like rejected login credentials
+func (o *WsClient) Cancel() {
+	o.c.Cancel()
+}
+
 func (o *WsClient) Send(r WsRequest) {
 	o.c.SendJson(r)
 }
@@ -121,6 +127,12 @@ func (o *WsClient) Unsubscribe(args ...SubscriptionArgs) {
 	if len(args) > 0 {
 		o.Send(WsRequest{Op: "unsubscribe", Args: args})
 	}
+}
+
+// Login - authenticate the private connection; a separate method since the
+// login args shape differs from the subscription args of WsRequest
+func (o *WsClient) Login(args ...LoginArgs) {
+	o.c.SendJson(WsLoginRequest{Op: "login", Args: args})
 }
 
 // ping - Bitget keepalive is a literal text frame, not a JSON message;

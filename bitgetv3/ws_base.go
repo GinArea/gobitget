@@ -9,11 +9,14 @@ import (
 type WsBase struct {
 	c              *WsClient
 	ready          bool
+	authSent       bool
+	handshake      func()
 	onReady        func()
 	onConnected    func()
 	onDisconnected func()
 	onDialError    func(error) bool
 	onError        func(WsResponse)
+	onLoginFailed  func()
 	subscriptions  *Subscriptions
 }
 
@@ -52,11 +55,18 @@ func (o *WsBase) Run() {
 			o.onConnected()
 		}
 		// the public channel has no handshake (welcome/login): ready right after connect;
-		// the private client will instead call markReady() on a successful login ack
-		o.markReady()
+		// the private client sets handshake to send the login request, and markReady()
+		// is called from onResponse on a successful login ack
+		if o.handshake == nil {
+			o.markReady()
+		} else {
+			o.authSent = true
+			o.handshake()
+		}
 	})
 	o.c.WithOnDisconnected(func() {
 		o.ready = false
+		o.authSent = false
 		if o.onDisconnected != nil {
 			o.onDisconnected()
 		}
@@ -87,9 +97,37 @@ func (o *WsBase) unsubscribe(args ...SubscriptionArgs) {
 }
 
 func (o *WsBase) onResponse(r WsResponse) {
+	if r.IsLogin() {
+		o.authSent = false
+		if r.Code.Value() == 0 {
+			r.Log(o.c.Log())
+			o.markReady()
+		} else {
+			o.loginFailed(r)
+		}
+		return
+	}
+	// an error event in the handshake window is the login rejection in its
+	// event:"error" shape: no other request may be in flight before ready
+	// (subscriptions are gated on Ready)
+	if r.IsError() && o.authSent && !o.ready {
+		o.authSent = false
+		o.loginFailed(r)
+		return
+	}
 	r.Log(o.c.Log())
 	if r.IsError() && o.onError != nil {
 		o.onError(r)
+	}
+}
+
+// loginFailed - rejected credentials are unrecoverable: stop the reconnect loop
+// instead of retrying the same bad login forever, then notify the client
+func (o *WsBase) loginFailed(r WsResponse) {
+	o.c.Log().Error("login:", r.Code.Value(), r.Msg)
+	o.c.Cancel()
+	if o.onLoginFailed != nil {
+		o.onLoginFailed()
 	}
 }
 
@@ -142,4 +180,12 @@ func (o *WsBase) setOnReady(f func()) {
 
 func (o *WsBase) setOnError(f func(WsResponse)) {
 	o.onError = f
+}
+
+func (o *WsBase) setHandshake(f func()) {
+	o.handshake = f
+}
+
+func (o *WsBase) setOnLoginFailed(f func()) {
+	o.onLoginFailed = f
 }

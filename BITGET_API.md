@@ -127,6 +127,50 @@ volume (they coincide for USDT-quoted symbols). Ack and error events echo the nu
 | 1D UTC | — (`1D` opens 16:00 UTC) | **`candle1Dutc`** |
 | 3D / 1W / 1M UTC | — | **`candle3Dutc` / `candle1Wutc` / `candle1Mutc`** |
 
+## Private WebSocket (v3)
+
+Endpoint: `wss://ws.bitget.com/v3/ws/private`. Verified live 2026-08-17.
+
+### Login
+
+```json
+{"op":"login","args":[{"apiKey":"...","passphrase":"...","timestamp":"1786962582","sign":"..."}]}
+```
+
+- `sign` = `base64(HMAC_SHA256(secret, timestamp + "GET" + "/user/verify"))`.
+- `timestamp` is documented in unix **seconds**; the server actually accepts a millisecond
+  timestamp too (both verified live). `bitgetv3` sends seconds per the docs.
+- Success ack: `{"event":"login","code":0,"connId":"..."}` — `code` is a JSON **number**
+  (the docs show strings), same as all other v3 WS events.
+- A **rejected login arrives as an `event:"error"`, not as a login ack with a non-zero code**:
+  `{"event":"error","code":30015,"msg":"Invalid sign"}`. The connection is NOT closed by the
+  server (no close frame within 8s), unlike OKX which closes with 4001 — so a client must stop
+  its own reconnect loop or it will retry the same bad login forever (`bitgetv3` cancels the
+  reconnect job and fires `WithOnLoginFailed`).
+- A subscription sent before login fails with
+  `{"event":"error","code":30004,"msg":"User not logged in/User must be logged in"}`.
+
+### Position channel (`topic: position`)
+
+Subscription args: `{"instType":"UTA","topic":"position"}`.
+
+- `instType` must be the literal uppercase `UTA`; lowercase `uta` is rejected with 30001
+  "doesn't exist" (note: public v3 channels use lowercase instTypes — the opposite).
+- The `symbol` field is optional: omitting it, sending `"symbol":""` and sending a real symbol
+  are all accepted. However the **push envelope `arg` never echoes the symbol** — even when the
+  subscription was made with one (the subscribe ack does echo it). A client that routes pushes
+  by the full arg must therefore register the subscription without a symbol. `bitgetv3`
+  subscribes account-wide (symbolless) only.
+- A **snapshot is pushed immediately after subscribing even when the account is flat**:
+  `{"action":"snapshot","arg":{"instType":"UTA","topic":"position"},"data":[],"ts":...}`.
+  Each (re)subscription — including the automatic resubscribe after a reconnect — yields a
+  fresh snapshot.
+- There are no periodic pushes: after the snapshot, data arrives only on position events
+  (see the docs event list). Keepalive is the same text `ping`/`pong` as the public WS
+  (connection verified to survive a 2.5-minute idle window with pings).
+- Numeric fields arrive as JSON strings and may be **empty strings** (e.g. `mmr`, `liqPrice`,
+  `profitRate`, `breakEvenPrice` in the docs example) — parse them leniently.
+
 ## WebSocket Candlesticks Channel quirks
 
 - The **initial push** after subscribing is a snapshot carrying recent candle history

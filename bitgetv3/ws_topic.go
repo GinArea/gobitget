@@ -31,6 +31,66 @@ func UnmarshalRawTopic[T any](raw RawTopic) (ret Topic[T], err error) {
 	return
 }
 
+// WsPosition - item of Positions Channel push data; every field arrives as a JSON string,
+// numeric fields may be empty strings (parsed as 0)
+// https://www.bitget.com/api-doc/uta/websocket/private/Positions-Channel
+type WsPosition struct {
+	// Symbol - Symbol name
+	Symbol string
+	// MarginCoin - Margin coin
+	MarginCoin string
+	// MarginSize - Margin size
+	MarginSize ujson.Float64
+	// MarginMode - Margin mode: crossed, isolated
+	MarginMode string
+	// PosSide - Position side: long, short
+	PosSide string
+	// HoldMode - Holding mode: one_way_mode, hedge_mode
+	HoldMode string
+	// PositionStatus - Position status: opening (ongoing), ended (completed)
+	PositionStatus string
+	// Size - Position size: size = available + frozen
+	Size ujson.Float64
+	// Available - Available position size
+	Available ujson.Float64
+	// Frozen - Frozen position size
+	Frozen ujson.Float64
+	// AvgPrice - Average open price
+	AvgPrice ujson.Float64
+	// Leverage - Leverage multiple
+	Leverage ujson.Float64
+	// CurRealisedPnl - Realised PnL
+	CurRealisedPnl ujson.Float64
+	// UnrealisedPnl - Unrealised PnL
+	UnrealisedPnl ujson.Float64
+	// LiqPrice - Estimated liquidation price
+	LiqPrice ujson.Float64
+	// Mmr - Maintain margin rate
+	Mmr ujson.Float64
+	// MarginRate - Margin rate
+	MarginRate ujson.Float64
+	// MarkPrice - Mark price
+	MarkPrice ujson.Float64
+	// OpenFeeTotal - Total opening fee
+	OpenFeeTotal ujson.Float64
+	// CloseFeeTotal - Total closing fee
+	CloseFeeTotal ujson.Float64
+	// BreakEvenPrice - Break-even price
+	BreakEvenPrice ujson.Float64
+	// ProfitRate - Profit rate = unrealized PnL / initial margin, where
+	// initial margin = average open price * position size / leverage / margin coin index price
+	ProfitRate ujson.Float64
+	// TotalFundingFee - Total funding fee over the position's lifetime; 0 indicates
+	// that no funding fee has been charged yet
+	TotalFundingFee ujson.Float64
+	// CashDividend - Cash dividend, unit: USDT
+	CashDividend ujson.Float64
+	// CreatedTime - Position creation time, unix ms
+	CreatedTime ujson.Int64
+	// UpdatedTime - Latest position update time, unix ms
+	UpdatedTime ujson.Int64
+}
+
 // WsTicker - item of Tickers Channel push data; every field arrives as a JSON string
 // The symbol is not repeated here: it comes only in the topic arg
 // https://www.bitget.com/api-doc/uta/websocket/public/Tickers-Channel

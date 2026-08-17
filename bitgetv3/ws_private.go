@@ -1,0 +1,88 @@
+package bitgetv3
+
+import (
+	"github.com/msw-x/moon/ulog"
+)
+
+// WsPrivate - private WebSocket client (UTA)
+// Authenticates with a login request right after connect; subscriptions are
+// deferred until the login ack and replayed automatically on reconnect
+// https://www.bitget.com/api-doc/uta/websocket/private/WebSocket-Private
+type WsPrivate struct {
+	WsBase
+	s *Sign
+}
+
+func NewWsPrivate(key, secret, password string) *WsPrivate {
+	o := new(WsPrivate)
+	o.init()
+	o.s = NewSign(key, secret, password)
+	o.c.WithPath(WsPrivatePath)
+	o.setHandshake(func() {
+		o.c.Login(o.s.WebSocket())
+	})
+	return o
+}
+
+// Builder methods (return *WsPrivate for chaining)
+
+func (o *WsPrivate) WithLog(log *ulog.Log) *WsPrivate {
+	o.setLog(log)
+	return o
+}
+
+func (o *WsPrivate) WithProxy(proxy string) *WsPrivate {
+	o.setProxy(proxy)
+	return o
+}
+
+func (o *WsPrivate) WithLogRequest(enable bool) *WsPrivate {
+	o.setLogRequest(enable)
+	return o
+}
+
+func (o *WsPrivate) WithLogResponse(enable bool) *WsPrivate {
+	o.setLogResponse(enable)
+	return o
+}
+
+func (o *WsPrivate) WithOnDialError(f func(error) bool) *WsPrivate {
+	o.setOnDialError(f)
+	return o
+}
+
+func (o *WsPrivate) WithOnConnected(f func()) *WsPrivate {
+	o.setOnConnected(f)
+	return o
+}
+
+func (o *WsPrivate) WithOnDisconnected(f func()) *WsPrivate {
+	o.setOnDisconnected(f)
+	return o
+}
+
+func (o *WsPrivate) WithOnReady(f func()) *WsPrivate {
+	o.setOnReady(f)
+	return o
+}
+
+func (o *WsPrivate) WithOnError(f func(WsResponse)) *WsPrivate {
+	o.setOnError(f)
+	return o
+}
+
+// WithOnLoginFailed - called when the server rejects the login credentials;
+// the reconnect loop is stopped before the callback (see WsBase.loginFailed)
+func (o *WsPrivate) WithOnLoginFailed(f func()) *WsPrivate {
+	o.setOnLoginFailed(f)
+	return o
+}
+
+// Topic subscriptions
+
+// Position - futures position stream: a snapshot on subscription, then
+// incremental pushes on position opens/closes and close-order events
+// https://www.bitget.com/api-doc/uta/websocket/private/Positions-Channel
+func (o *WsPrivate) Position() *Executor[[]WsPosition] {
+	return NewExecutor[[]WsPosition](wsPrivateArgs("position"), o.subscriptions)
+}

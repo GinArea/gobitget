@@ -64,6 +64,25 @@ func (o *Sign) header(h http.Header, data string, path string, method string, ap
 	h.Set("locale", "en-US")
 }
 
+// WebSocket - build the login args for the private WebSocket
+// sign = base64(HMAC_SHA256(secret, timestamp + "GET" + "/user/verify")), timestamp in unix seconds
+// (unlike the REST millisecond timestamp)
+// https://www.bitget.com/api-doc/uta/websocket/private/WebSocket-Private
+func (o *Sign) WebSocket() LoginArgs {
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	return LoginArgs{
+		ApiKey:     o.Key,
+		Passphrase: o.Password,
+		Timestamp:  ts,
+		Sign:       wsSign(ts, o.Secret),
+	}
+}
+
+// wsSign - sign the WebSocket login pre-sign string for the given timestamp
+func wsSign(ts, secret string) string {
+	return signHmac(ts+"GET"+"/user/verify", secret)
+}
+
 func signHmac(message, secret string) string {
 	h := hmac.New(sha256.New, []byte(secret))
 	io.WriteString(h, message)
