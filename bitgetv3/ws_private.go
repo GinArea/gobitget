@@ -86,3 +86,12 @@ func (o *WsPrivate) WithOnLoginFailed(f func()) *WsPrivate {
 func (o *WsPrivate) Position() *Executor[[]WsPosition] {
 	return NewExecutor[[]WsPosition](wsPrivateArgs("position"), o.subscriptions)
 }
+
+// Order - unified-account order stream: pushes on order place/fill/cancel across
+// spot, margin and futures; unlike the position channel there is NO snapshot on
+// subscription (verified live). A fast-filling order may arrive as a single
+// "filled" push or as a "new" push followed by a "filled" one
+// https://www.bitget.com/api-doc/uta/websocket/private/Order-Channel
+func (o *WsPrivate) Order() *Executor[[]WsOrder] {
+	return NewExecutor[[]WsOrder](wsPrivateArgs("order"), o.subscriptions)
+}

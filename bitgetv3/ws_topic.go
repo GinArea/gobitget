@@ -91,6 +91,100 @@ type WsPosition struct {
 	UpdatedTime ujson.Int64
 }
 
+// WsOrder - item of Order Channel push data; every field arrives as a JSON string,
+// numeric fields may be empty strings (parsed as 0)
+// Field names follow the WS docs and differ from the REST Order type
+// (HoldSide/TotalProfit/Amount here vs PosSide/no equivalent there; no ExecType or TP/SL fields)
+// https://www.bitget.com/api-doc/uta/websocket/private/Order-Channel
+type WsOrder struct {
+	// Category - Business line: spot, margin, usdt-futures, coin-futures, usdc-futures;
+	// the push carries lowercase values, unlike the uppercase REST Category constants
+	// (verified live)
+	Category Category
+	// Symbol - Symbol name
+	Symbol string
+	// OrderId - Order ID
+	OrderId string
+	// ClientOid - Client order ID
+	ClientOid string
+	// RequestId - Custom request ID passed in when modifying the order; only returned
+	// if it was provided in the modify order request
+	RequestId string
+	// Price - Order price (empty for market orders)
+	Price ujson.Float64
+	// Qty - Order quantity, the unit is base coin
+	Qty ujson.Float64
+	// Amount - Order amount, the unit is quote coin
+	Amount ujson.Float64
+	// HoldMode - Holding mode: one_way_mode, hedge_mode
+	HoldMode string
+	// HoldSide - Position side: long, short
+	HoldSide string
+	// DelegateType - Delegate type, e.g. normal (normal limit), market, liquidation;
+	// full enumeration in the docs
+	DelegateType string
+	// TradeSide - Trade side: open/close per the docs, but the live push sends detailed
+	// variants like the REST Order (e.g. buy_single/sell_single in one-way mode)
+	TradeSide string
+	// OrderType - Order type: limit, market
+	OrderType string
+	// TimeInForce - Time in force: ioc, fok, gtc, post_only, rpi
+	TimeInForce string
+	// Side - Order side: buy, sell
+	Side string
+	// MarginMode - Margin mode: crossed, isolated
+	MarginMode string
+	// MarginCoin - Margin coin
+	MarginCoin string
+	// ReduceOnly - Reduce-only identifier: yes, no
+	ReduceOnly string
+	// CumExecQty - Cumulative executed quantity
+	CumExecQty ujson.Float64
+	// CumExecValue - Cumulative executed value
+	CumExecValue ujson.Float64
+	// AvgPrice - Average execution price; 0 if not executed
+	AvgPrice ujson.Float64
+	// TotalProfit - Total profit
+	TotalProfit ujson.Float64
+	// OrderStatus - Order status: new (order matching), partially_filled, filled, cancelled
+	OrderStatus string
+	// CancelReason - Reason for order cancellation
+	CancelReason string
+	// Leverage - Leverage multiple
+	Leverage ujson.Float64
+	// FeeDetail - Fee detail list
+	FeeDetail []FeeDetail
+	// CreatedTime - Created time, unix ms
+	CreatedTime ujson.Int64
+	// UpdatedTime - Updated time, unix ms
+	UpdatedTime ujson.Int64
+	// StpMode - STP mode (Self Trade Prevention): none, cancel_taker, cancel_maker, cancel_both
+	StpMode string
+
+	// The fields below are absent from the WS docs but present in the live push (verified live)
+
+	// TpTriggerBy - Take-profit trigger type: market, mark (undocumented in the WS docs)
+	TpTriggerBy string
+	// SlTriggerBy - Stop-loss trigger type: market, mark (undocumented in the WS docs)
+	SlTriggerBy string
+	// TakeProfit - Take-profit trigger price; the push key is all-lowercase "takeprofit",
+	// matched case-insensitively (undocumented in the WS docs)
+	TakeProfit ujson.Float64
+	// StopLoss - Stop-loss trigger price; the push key is all-lowercase "stoploss",
+	// matched case-insensitively (undocumented in the WS docs)
+	StopLoss ujson.Float64
+	// TpOrderType - Take-profit order type: limit, market (undocumented in the WS docs)
+	TpOrderType string
+	// SlOrderType - Stop-loss order type: limit, market (undocumented in the WS docs)
+	SlOrderType string
+	// TpLimitPrice - Take-profit limit order execution price (undocumented in the WS docs)
+	TpLimitPrice ujson.Float64
+	// SlLimitPrice - Stop-loss limit order execution price (undocumented in the WS docs)
+	SlLimitPrice ujson.Float64
+	// MatchType - Match type, e.g. 0 (undocumented in the WS docs, meaning unknown)
+	MatchType ujson.Int64
+}
+
 // WsTicker - item of Tickers Channel push data; every field arrives as a JSON string
 // The symbol is not repeated here: it comes only in the topic arg
 // https://www.bitget.com/api-doc/uta/websocket/public/Tickers-Channel

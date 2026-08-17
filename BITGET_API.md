@@ -171,6 +171,30 @@ Subscription args: `{"instType":"UTA","topic":"position"}`.
 - Numeric fields arrive as JSON strings and may be **empty strings** (e.g. `mmr`, `liqPrice`,
   `profitRate`, `breakEvenPrice` in the docs example) — parse them leniently.
 
+### Order channel (`topic: order`)
+
+Subscription args: `{"instType":"UTA","topic":"order"}` (same uppercase-UTA, symbolless form as
+the position channel; the push envelope `arg` carries no symbol either). Verified 2026-08-17.
+
+- **No push on first-time subscription** (per the docs, confirmed live) — unlike the position
+  channel, which sends a snapshot (possibly empty) after every (re)subscription.
+- The push `action` is **always `snapshot`**, even for order events (place/fill/cancel).
+- `category` in push data is **lowercase** (`usdt-futures`), unlike the uppercase REST
+  `category` values — same asymmetry as public-WS instTypes.
+- Push sequence is race-dependent: a fast-filling market order may arrive as a single
+  `filled` push, or as a `new` push (cumExecQty 0) followed by a `filled` one — both
+  observed live for identical orders. A zero-fill ioc limit order arrives as a single
+  `cancelled` push with `cancelReason: "ioc_not_full_cancel"` and an empty `feeDetail`.
+- `tradeSide` is documented as `open`/`close` but the live push sends detailed variants
+  (one-way mode: `buy_single`/`sell_single`), like the REST order endpoints.
+- `timeInForce` is engine-normalized: market orders push `"ioc"`.
+- The live push carries fields **absent from the docs table**: `tpTriggerBy`, `slTriggerBy`,
+  `takeprofit`, `stoploss` (note: these two keys are all-lowercase, unlike the REST
+  `takeProfit`/`stopLoss`), `tpOrderType`, `slOrderType`, `tpLimitPrice`, `slLimitPrice`
+  and `matchType` (numeric-as-string, meaning unknown, observed `"0"`).
+- Numeric fields may be empty strings (`price` of a market order, the tp/sl block) —
+  parse them leniently.
+
 ## WebSocket Candlesticks Channel quirks
 
 - The **initial push** after subscribing is a snapshot carrying recent candle history
