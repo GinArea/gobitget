@@ -168,8 +168,19 @@ Subscription args: `{"instType":"UTA","topic":"position"}`.
 - There are no periodic pushes: after the snapshot, data arrives only on position events
   (see the docs event list). Keepalive is the same text `ping`/`pong` as the public WS
   (connection verified to survive a 2.5-minute idle window with pings).
-- Numeric fields arrive as JSON strings and may be **empty strings** (e.g. `mmr`, `liqPrice`,
-  `profitRate`, `breakEvenPrice` in the docs example) — parse them leniently.
+- **Position events arrive with `action: "update"`** — only the initial subscription push
+  is a `snapshot`. The docs example shows `snapshot` only, and the order channel (below)
+  uses `snapshot` even for events — the two channels are inconsistent (both verified live).
+- **Field set verified live against a real position push** (open + close of a minimal
+  0.0001 BTCUSDT long, 2026-08-17): the push carries **no undocumented extras** (25 keys),
+  and of the 26 documented fields **`marginRate` never arrives** — `WsPosition.MarginRate`
+  always parses as 0.
+- Close sequence: a reduce-only close produces two updates — first still `opening` with the
+  size moved to `frozen`, then `ended` with zeroed sizes and most numerics collapsed to
+  empty strings (`liqPrice`, `mmr`, `profitRate`, `breakEvenPrice`, `openFeeTotal`,
+  `closeFeeTotal`, `totalFundingFee`, `cashDividend`).
+- Numeric fields arrive as JSON strings and may be **empty strings** — parse them leniently.
+  `openFeeTotal` arrives **negative** on an open position.
 
 ### Order channel (`topic: order`)
 

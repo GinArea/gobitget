@@ -33,6 +33,8 @@ func UnmarshalRawTopic[T any](raw RawTopic) (ret Topic[T], err error) {
 
 // WsPosition - item of Positions Channel push data; every field arrives as a JSON string,
 // numeric fields may be empty strings (parsed as 0)
+// The field set is verified live against a real position push: the push carries no
+// undocumented extras, and of the documented fields only marginRate never arrives
 // https://www.bitget.com/api-doc/uta/websocket/private/Positions-Channel
 type WsPosition struct {
 	// Symbol - Symbol name
@@ -67,7 +69,8 @@ type WsPosition struct {
 	LiqPrice ujson.Float64
 	// Mmr - Maintain margin rate
 	Mmr ujson.Float64
-	// MarginRate - Margin rate
+	// MarginRate - Margin rate; documented, but ABSENT from the live push (verified live) -
+	// always parses as 0
 	MarginRate ujson.Float64
 	// MarkPrice - Mark price
 	MarkPrice ujson.Float64

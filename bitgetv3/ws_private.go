@@ -80,8 +80,10 @@ func (o *WsPrivate) WithOnLoginFailed(f func()) *WsPrivate {
 
 // Topic subscriptions
 
-// Position - futures position stream: a snapshot on subscription, then
-// incremental pushes on position opens/closes and close-order events
+// Position - futures position stream: a snapshot on subscription (action
+// "snapshot", empty when flat), then event pushes on position opens/closes and
+// close-order events with action "update" (verified live; the docs show
+// "snapshot" only, and the order channel uses "snapshot" for events)
 // https://www.bitget.com/api-doc/uta/websocket/private/Positions-Channel
 func (o *WsPrivate) Position() *Executor[[]WsPosition] {
 	return NewExecutor[[]WsPosition](wsPrivateArgs("position"), o.subscriptions)
