@@ -206,6 +206,30 @@ the position channel; the push envelope `arg` carries no symbol either). Verifie
 - Numeric fields may be empty strings (`price` of a market order, the tp/sl block) —
   parse them leniently.
 
+### Account channel (`topic: account`)
+
+Subscription args: `{"instType":"UTA","topic":"account"}` (same uppercase-UTA, symbolless form
+as the other private channels). Verified 2026-08-17 with a real 0.0001 BTCUSDT open/close cycle.
+
+- A **snapshot is pushed on first-time subscription** (per the docs, confirmed live), and after
+  every (re)subscription including the automatic resubscribe after a reconnect — same behavior
+  as the position channel, unlike the order channel.
+- **Balance events arrive with `action: "update"`** (order fills, settlement, transfers) — like
+  the position channel, unlike the order channel which uses `snapshot` for events.
+- **Field set matches the docs exactly** (programmatic key-diff live): 8 top-level keys,
+  9 coin-item keys, **no undocumented extras and nothing missing** — the only private channel
+  so far with zero discrepancies. Note the docs key `unrealisedPnL` (capital L).
+- The push `data` list carries a **single item** (the whole account).
+- Values are **absolute balances, not deltas**: an `update` repeats the full current state.
+  The coin list carries only non-zero balances (same as REST `GET /api/v3/account/assets`);
+  whether an `update` restricts the coin list to changed coins could not be distinguished on a
+  single-coin account.
+- One update per fill event was observed: the open fill pushes non-zero `imr`/`mmr`/`mgnRatio`
+  and the fee-reduced balance; the close fill pushes them back to zero.
+- The WS item differs from REST `AccountAssets`: `totalEquity` here vs `accountEquity` there;
+  no `usdtEquity`/`btcEquity`/`positionValue`/`leverage` here; the coin item has `borrow`
+  (absent from REST) and plural `debts` (REST has `debt`).
+
 ## WebSocket Candlesticks Channel quirks
 
 - The **initial push** after subscribing is a snapshot carrying recent candle history

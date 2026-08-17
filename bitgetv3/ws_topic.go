@@ -188,6 +188,60 @@ type WsOrder struct {
 	MatchType ujson.Int64
 }
 
+// WsAccount - item of Account Channel push data; every field arrives as a JSON string
+// The field set is verified live against real balance pushes: the push carries no
+// undocumented extras and every documented field arrives. Values are absolute
+// balances, not deltas. The push data list carries a single item
+// Field names differ from the REST AccountAssets type (TotalEquity here vs
+// AccountEquity there; no usdtEquity/btcEquity/positionValue/leverage here)
+// https://www.bitget.com/api-doc/uta/websocket/private/Account-Channel
+type WsAccount struct {
+	// TotalEquity - Account equity (USD)
+	TotalEquity ujson.Float64
+	// EffEquity - Effective margin (USD): the net value available for margin in spot
+	// and perpetual trades under cross-margin mode, converted to fiat
+	EffEquity ujson.Float64
+	// Mmr - Maintenance margin (USD): the minimum margin required to maintain the
+	// position, converted to fiat
+	Mmr ujson.Float64
+	// Imr - Initial margin (USD): total initial margin of assets in base coin, converted to fiat
+	Imr ujson.Float64
+	// MgnRatio - Margin ratio
+	MgnRatio ujson.Float64
+	// PositionMgnRatio - Hold position margin ratio
+	PositionMgnRatio ujson.Float64
+	// UnrealisedPnl - Unrealised profit and loss; the push key is "unrealisedPnL"
+	// (capital L), matched case-insensitively
+	UnrealisedPnl ujson.Float64
+	// Coin - Coin list (only non-zero balances arrive)
+	Coin []WsAccountCoin
+}
+
+// WsAccountCoin - item of the coin list in Account Channel push data
+// The coin item differs from the REST AccountAsset: Borrow exists only here,
+// and the debt field is plural Debts (REST has Debt)
+// https://www.bitget.com/api-doc/uta/websocket/private/Account-Channel
+type WsAccountCoin struct {
+	// Coin - Coin name
+	Coin string
+	// Balance - Coin balance
+	Balance ujson.Float64
+	// Locked - Locked amount (only applicable for spot order placement)
+	Locked ujson.Float64
+	// Equity - Coin equity
+	Equity ujson.Float64
+	// UsdValue - Coin value (USD)
+	UsdValue ujson.Float64
+	// Available - Available balance
+	Available ujson.Float64
+	// Borrow - Borrowed amount
+	Borrow ujson.Float64
+	// Debts - Debt (only applicable for margin trading)
+	Debts ujson.Float64
+	// Bonus - USDT bonus amount
+	Bonus ujson.Float64
+}
+
 // WsTicker - item of Tickers Channel push data; every field arrives as a JSON string
 // The symbol is not repeated here: it comes only in the topic arg
 // https://www.bitget.com/api-doc/uta/websocket/public/Tickers-Channel

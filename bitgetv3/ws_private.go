@@ -97,3 +97,13 @@ func (o *WsPrivate) Position() *Executor[[]WsPosition] {
 func (o *WsPrivate) Order() *Executor[[]WsOrder] {
 	return NewExecutor[[]WsOrder](wsPrivateArgs("order"), o.subscriptions)
 }
+
+// Account - unified-account balance stream: a snapshot on subscription (action
+// "snapshot"), then pushes on order fills, fund settlement and balance changes
+// (transfers, airdrops, loans, etc.) with action "update" (verified live; like
+// the position channel and unlike the order channel, which uses "snapshot" for
+// events). Values are absolute balances, not deltas
+// https://www.bitget.com/api-doc/uta/websocket/private/Account-Channel
+func (o *WsPrivate) Account() *Executor[[]WsAccount] {
+	return NewExecutor[[]WsAccount](wsPrivateArgs("account"), o.subscriptions)
+}
