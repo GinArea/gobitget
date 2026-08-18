@@ -45,13 +45,13 @@ const (
 	Interval1D Interval = "1D"
 
 	// The values below are UNDOCUMENTED in the v3 docs (inherited from the v2 API).
-	// Verified live 2026-08-13 on GET /api/v3/market/candles for SPOT, USDT-FUTURES and COIN-FUTURES
+	// Verified live on GET /api/v3/market/candles for SPOT, USDT-FUTURES and COIN-FUTURES
 	// (grids are identical across categories): native 6H/12H/1D/3D/1W/1M candles open on the UTC+8 grid
 	// (weeks on Monday, months on the 1st), the utc-suffixed variants - on the UTC grid.
 	// Intervals up to 4H need no utc variant: their period divides the 8-hour offset, so both grids coincide.
-	// 3H, 8H, 1Hutc and 4Hutc do NOT exist (parameter error 40020).
+	// 3H, 8H, 1Hutc and 4Hutc do not exist on REST (parameter error 40020; 8H exists on the legacy v2 WS).
 	// The v3 WS kline channel accepts just the 10 documented values and rejects everything else with
-	// error 30001 (verified live); the legacy v2 WS supports all of them, which is why candle streaming
+	// error 30001; the legacy v2 WS supports all of them, which is why candle streaming
 	// in this library goes through WsPublicV2. See BITGET_API.md for the full reference table.
 
 	// Interval2H - 2 hours (UTC-aligned)

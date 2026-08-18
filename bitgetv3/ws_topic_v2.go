@@ -36,7 +36,7 @@ func UnmarshalRawTopicV2[T any](raw RawTopicV2) (ret TopicV2[T], err error) {
 // of 8 strings: [ts, open, high, low, close, baseVolume, quoteVolume, usdtVolume]
 // (field order verified live on a BTC-quoted pair; for USDT-quoted symbols the last two match).
 // The initial snapshot carries recent candle history (500 items or the full available depth)
-// sorted oldest-first, so the current candle is the last item - same behavior as the v3 WS
+// sorted oldest-first, so the current candle is the last item
 // https://www.bitget.com/api-doc/spot/websocket/public/Candlesticks-Channel
 type WsCandleV2 struct {
 	// Start - Candle start timestamp, unix ms

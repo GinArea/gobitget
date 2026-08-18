@@ -6,6 +6,8 @@ import (
 
 // WsPublic - public WebSocket client (UTA)
 // A single endpoint serves all product types: the category is passed per subscription
+// Candle streaming is not here: the v3 kline channel lacks 2H and the utc-grid
+// intervals, so candles go through the legacy v2 client (WsPublicV2.Candle)
 // https://www.bitget.com/api-doc/uta/guide
 type WsPublic struct {
 	WsBase
@@ -72,7 +74,3 @@ func (o *WsPublic) WithOnError(f func(WsResponse)) *WsPublic {
 func (o *WsPublic) Ticker(category Category, symbol string) *Executor[[]WsTicker] {
 	return NewExecutor[[]WsTicker](wsArgs("ticker", category, symbol), o.subscriptions)
 }
-
-// There is intentionally no v3 kline factory here: the v3 WS channel lacks the required
-// timeframes (no 2H, no utc-grid variants), so candle streaming goes through the legacy
-// v2 client (WsPublicV2.Candle) - see BITGET_API.md

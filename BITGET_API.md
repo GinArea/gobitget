@@ -1,8 +1,9 @@
 # Bitget UTA v3 API Reference — Exchange-Specific Quirks
 
-This document records live-verified behavior of the Bitget UTA v3 API that is missing from or
-contradicts the official docs (https://www.bitget.com/api-doc/uta/). Verified 2026-08-13 against
-`https://api.bitget.com` on SPOT, USDT-FUTURES and COIN-FUTURES.
+This document records live-verified behavior of the Bitget UTA v3 API (and of the legacy v2 WS
+used for candle streaming) that is missing from or contradicts the official docs
+(https://www.bitget.com/api-doc/uta/). Everything was verified against `https://api.bitget.com`;
+the scope of each verification (categories, symbols) is noted per section.
 
 ---
 
@@ -49,12 +50,6 @@ coincide.
 Minutes are lowercase (`1m`), hours/days/weeks/months are uppercase (`1H`, `1D`, `1W`, `1M`),
 the `utc` suffix is lowercase (`1Dutc`).
 
-### WebSocket kline channel
-
-The v3 WS Candlesticks Channel (`topic: kline`) accepts **only** the 10 documented base intervals —
-the extended/utc values above are REST-only. For other timeframes over WS use the legacy v2 WS
-(see "WebSocket kline intervals: v3 vs legacy v2" below).
-
 ---
 
 ## Other verified `GET /api/v3/market/candles` quirks
@@ -73,7 +68,7 @@ the extended/utc values above are REST-only. For other timeframes over WS use th
 
 ## WebSocket kline intervals: v3 vs legacy v2
 
-Verified live 2026-08-16 on SPOT and USDT-FUTURES (BTCUSDT), every result reproduced on a second run.
+Verified live on SPOT and USDT-FUTURES (BTCUSDT).
 
 ### v3 WS (`wss://ws.bitget.com/v3/ws/public`, topic `kline`)
 
@@ -129,7 +124,7 @@ volume (they coincide for USDT-quoted symbols). Ack and error events echo the nu
 
 ## Private WebSocket (v3)
 
-Endpoint: `wss://ws.bitget.com/v3/ws/private`. Verified live 2026-08-17.
+Endpoint: `wss://ws.bitget.com/v3/ws/private`. Verified live.
 
 ### Login
 
@@ -172,7 +167,7 @@ Subscription args: `{"instType":"UTA","topic":"position"}`.
   is a `snapshot`. The docs example shows `snapshot` only, and the order channel (below)
   uses `snapshot` even for events — the two channels are inconsistent (both verified live).
 - **Field set verified live against a real position push** (open + close of a minimal
-  0.0001 BTCUSDT long, 2026-08-17): the push carries **no undocumented extras** (25 keys),
+  0.0001 BTCUSDT long): the push carries **no undocumented extras** (25 keys),
   and of the 26 documented fields **`marginRate` never arrives** — `WsPosition.MarginRate`
   always parses as 0.
 - Close sequence: a reduce-only close produces two updates — first still `opening` with the
@@ -185,7 +180,7 @@ Subscription args: `{"instType":"UTA","topic":"position"}`.
 ### Order channel (`topic: order`)
 
 Subscription args: `{"instType":"UTA","topic":"order"}` (same uppercase-UTA, symbolless form as
-the position channel; the push envelope `arg` carries no symbol either). Verified 2026-08-17.
+the position channel; the push envelope `arg` carries no symbol either). Verified live.
 
 - **No push on first-time subscription** (per the docs, confirmed live) — unlike the position
   channel, which sends a snapshot (possibly empty) after every (re)subscription.
@@ -209,32 +204,55 @@ the position channel; the push envelope `arg` carries no symbol either). Verifie
 ### Account channel (`topic: account`)
 
 Subscription args: `{"instType":"UTA","topic":"account"}` (same uppercase-UTA, symbolless form
-as the other private channels). Verified 2026-08-17 with a real 0.0001 BTCUSDT open/close cycle.
+as the other private channels). Verified live with a real 0.0001 BTCUSDT open/close cycle.
 
 - A **snapshot is pushed on first-time subscription** (per the docs, confirmed live), and after
   every (re)subscription including the automatic resubscribe after a reconnect — same behavior
   as the position channel, unlike the order channel.
 - **Balance events arrive with `action: "update"`** (order fills, settlement, transfers) — like
   the position channel, unlike the order channel which uses `snapshot` for events.
-- **Field set matches the docs exactly** (programmatic key-diff live): 8 top-level keys,
-  9 coin-item keys, **no undocumented extras and nothing missing** — the only private channel
-  so far with zero discrepancies. Note the docs key `unrealisedPnL` (capital L).
+- **Field set matches the docs exactly**: 8 top-level keys, 9 coin-item keys,
+  **no undocumented extras and nothing missing** — the only private channel with zero
+  discrepancies. Note the docs key `unrealisedPnL` (capital L).
 - The push `data` list carries a **single item** (the whole account).
 - Values are **absolute balances, not deltas**: an `update` repeats the full current state.
-  The coin list carries only non-zero balances (same as REST `GET /api/v3/account/assets`);
-  whether an `update` restricts the coin list to changed coins could not be distinguished on a
-  single-coin account.
+  The coin list carries only non-zero balances (same as REST `GET /api/v3/account/assets`).
+  Known limitation of the verification: whether an `update` restricts the coin list to changed
+  coins is not established (indistinguishable on a single-coin account) — do not assume the
+  list is complete beyond the non-zero rule.
 - One update per fill event was observed: the open fill pushes non-zero `imr`/`mmr`/`mgnRatio`
   and the fee-reduced balance; the close fill pushes them back to zero.
 - The WS item differs from REST `AccountAssets`: `totalEquity` here vs `accountEquity` there;
   no `usdtEquity`/`btcEquity`/`positionValue`/`leverage` here; the coin item has `borrow`
   (absent from REST) and plural `debts` (REST has `debt`).
 
-## WebSocket Candlesticks Channel quirks
+---
 
-- The **initial push** after subscribing is a snapshot carrying recent candle history
-  (500 items, oldest-first): the current candle is the **last** item of `data`.
-  The docs show a single-item example only.
-- While trades occur, updates are pushed once per second; otherwise once per interval.
-- Error events arrive with a **numeric** `code` field (the docs show a string),
-  e.g. `30001` = topic does not exist.
+## FD Broker attribution (`X-CHANNEL-API-CODE`)
+
+Source: "Bitget FD Broker Dashboard Guidance" (not part of the public API docs). Orders placed
+via API are attributed to our broker account when the request carries the Channel API Code
+(found in the Broker Dashboard, Personal Center → Basic Info).
+
+**REST**: add the code as an HTTP header on order-placing requests:
+
+```http
+X-CHANNEL-API-CODE: <channel-api-code>
+```
+
+Supported endpoints (per the guidance; v3 subset relevant to this library):
+
+- `/api/v3/trade/place-order`
+- `/api/v3/trade/place-batch`
+- `/api/v3/trade/modify-order`
+- (plus the classic v2 mix/spot place/modify endpoints)
+
+The header is not part of the signature (the pre-sign string covers only
+`timestamp + method + path + body`), so it can be added independently of signing.
+
+Implementation: `Client.channelApiCode` (default `ChannelApiCode` from `url.go`, override via
+`WithChannelApiCode`) is set on every signed POST in `request.go`. An empty code disables the
+header.
+
+**WebSocket**: the guidance defines an `apiCode` field at the same level as `op`/`args` in the
+place-order channel. Not implemented — this library has no WS order placement.

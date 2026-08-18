@@ -18,8 +18,11 @@ import (
 // The request expires 30 seconds after the timestamp
 // https://www.bitget.com/api-doc/uta/guide
 type Sign struct {
-	Key      string
-	Secret   string
+	// Key - API key (ACCESS-KEY header)
+	Key string
+	// Secret - API secret used as the HMAC-SHA256 key
+	Secret string
+	// Password - API passphrase (ACCESS-PASSPHRASE header, sent as plain text)
 	Password string
 }
 
@@ -46,7 +49,7 @@ func (o *Sign) HeaderPost(h http.Header, body []byte, path string, apiPath strin
 func (o *Sign) header(h http.Header, data string, path string, method string, apiPath string) {
 	ts := o.timestamp()
 
-	// Pre-sign: timestamp + method + /api/v3/path + "?" + query (GET) | body (POST)
+	// Pre-sign: timestamp + method + /{apiPath}/path + "?" + query (GET) | body (POST)
 	preSign := ts + method + "/" + apiPath + "/" + path
 	if data != "" {
 		if method == http.MethodGet {

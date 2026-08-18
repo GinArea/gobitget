@@ -7,11 +7,17 @@ import (
 	"github.com/msw-x/moon/uhttp"
 )
 
+// Client - HTTP client with builder-style With* configuration
+// https://www.bitget.com/api-doc/uta/guide
 type Client struct {
 	c                *uhttp.Client
 	s                *Sign
 	onTransportError OnTransportError
-	apiPath          string // API path for signing (e.g., "api/v3")
+	// apiPath - API path for signing (e.g. "api/v3"); tracked separately because
+	// the pre-sign string must contain the actual path of the request
+	apiPath string
+	// channelApiCode - FD Broker attribution code, sent as X-CHANNEL-API-CODE on signed POST requests
+	channelApiCode string
 }
 
 func NewClient() *Client {
@@ -20,6 +26,7 @@ func NewClient() *Client {
 	o.apiPath = ApiVersion
 	o.WithBaseUrl(MainBaseUrl)
 	o.WithPath(ApiVersion)
+	o.WithChannelApiCode(ChannelApiCode)
 	return o
 }
 
@@ -49,6 +56,7 @@ func (o *Client) Copy() *Client {
 	r.s = o.s
 	r.onTransportError = o.onTransportError
 	r.apiPath = o.apiPath
+	r.channelApiCode = o.channelApiCode
 	return r
 }
 
@@ -65,6 +73,11 @@ func (o *Client) WithPath(path string) *Client {
 
 func (o *Client) WithAppendPath(path string) *Client {
 	o.c.WithAppendPath(path)
+	return o
+}
+
+func (o *Client) WithChannelApiCode(code string) *Client {
+	o.channelApiCode = code
 	return o
 }
 
@@ -96,4 +109,5 @@ func (o *Client) v2() *Client {
 	return o.Copy().WithPath(ApiVersion2)
 }
 
+// OnTransportError - callback on a transport-level failure; return true to retry the request
 type OnTransportError func(err error, method string, statusCode int, attempt int) bool

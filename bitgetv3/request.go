@@ -56,6 +56,9 @@ func req[R, T any](c *Client, method string, path string, request any, transform
 			c.s.HeaderGet(perf.Request.Header, perf.Request.Params, path, c.apiPath)
 		case http.MethodPost:
 			c.s.HeaderPost(perf.Request.Header, perf.Request.Body, path, c.apiPath)
+			if c.channelApiCode != "" {
+				perf.Request.Header.Set("X-CHANNEL-API-CODE", c.channelApiCode)
+			}
 		}
 	}
 	h := perf.Do()

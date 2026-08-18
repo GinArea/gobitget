@@ -4,8 +4,13 @@ import (
 	"fmt"
 )
 
+// Error - Bitget API error: the code/msg pair of the response envelope
+// Codes are strings; "00000" means success
+// https://www.bitget.com/api-doc/uta/error-code/restapi
 type Error struct {
+	// Code - Bitget error code (string, "00000" on success)
 	Code string
+	// Text - human-readable error message (msg field of the envelope)
 	Text string
 }
 
