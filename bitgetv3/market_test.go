@@ -1,6 +1,7 @@
 package bitgetv3
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -467,6 +468,214 @@ func TestGetCandles(t *testing.T) {
 			t.Logf("candles: %d, last: start %v, o %v, h %v, l %v, c %v, vol %v",
 				len(r.Data), time.UnixMilli(last.Ts).UTC().Format("2006-01-02 15:04:05"),
 				last.Open, last.High, last.Low, last.Close, last.Volume)
+		})
+	}
+}
+
+func TestGetHistoryCandles(t *testing.T) {
+	const (
+		minuteMs = int64(60_000)
+		dayMs    = int64(86_400_000)
+	)
+	now := time.Now().UnixMilli()
+	yearAgo := (now - 365*dayMs) / minuteMs * minuteMs
+	twoYearsAgo := (now - 730*dayMs) / minuteMs * minuteMs
+
+	tests := []struct {
+		name       string
+		req        GetHistoryCandles
+		intervalMs int64
+		wantLen    int
+		fresh      bool
+	}{
+		{
+			// half-hour window one year ago - far beyond the ~31-day depth of GetCandles;
+			// startTime is inclusive, endTime is exclusive, so 30 candle starts fall
+			// within [start, end) - opposite of GetCandles
+			name: "usdt futures 1m year ago",
+			req: GetHistoryCandles{
+				Category:  UsdtFutures,
+				Symbol:    "BTCUSDT",
+				Interval:  Interval1m,
+				StartTime: yearAgo - 30*minuteMs,
+				EndTime:   yearAgo,
+			},
+			intervalMs: minuteMs,
+			wantLen:    30,
+		},
+		{
+			name: "spot 1m year ago",
+			req: GetHistoryCandles{
+				Category:  Spot,
+				Symbol:    "BTCUSDT",
+				Interval:  Interval1m,
+				StartTime: yearAgo - 30*minuteMs,
+				EndTime:   yearAgo,
+			},
+			intervalMs: minuteMs,
+			wantLen:    30,
+		},
+		{
+			name: "mark price year ago",
+			req: GetHistoryCandles{
+				Category:  UsdtFutures,
+				Symbol:    "BTCUSDT",
+				Interval:  Interval1m,
+				Type:      CandleMark,
+				StartTime: yearAgo - 30*minuteMs,
+				EndTime:   yearAgo,
+			},
+			intervalMs: minuteMs,
+			wantLen:    30,
+		},
+		{
+			name: "usdt futures 1m two years ago",
+			req: GetHistoryCandles{
+				Category:  UsdtFutures,
+				Symbol:    "BTCUSDT",
+				Interval:  Interval1m,
+				StartTime: twoYearsAgo - 30*minuteMs,
+				EndTime:   twoYearsAgo,
+			},
+			intervalMs: minuteMs,
+			wantLen:    30,
+		},
+		{
+			// undocumented interval works on history-candles too
+			name: "2H undocumented year ago",
+			req: GetHistoryCandles{
+				Category:  UsdtFutures,
+				Symbol:    "BTCUSDT",
+				Interval:  Interval2H,
+				StartTime: yearAgo / (2 * 3_600_000) * (2 * 3_600_000),
+				EndTime:   yearAgo/(2*3_600_000)*(2*3_600_000) + 10*3_600_000,
+			},
+			intervalMs: 2 * 3_600_000,
+			wantLen:    5,
+		},
+		{
+			// endTime only: the last limit candles before endTime (exclusive)
+			name: "endTime only",
+			req: GetHistoryCandles{
+				Category: UsdtFutures,
+				Symbol:   "BTCUSDT",
+				Interval: Interval1m,
+				EndTime:  yearAgo,
+				Limit:    10,
+			},
+			intervalMs: minuteMs,
+			wantLen:    10,
+		},
+		{
+			name:       "no time window",
+			req:        GetHistoryCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval1m},
+			intervalMs: minuteMs,
+			fresh:      true,
+		},
+	}
+
+	c := NewClient()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := c.GetHistoryCandles(tt.req)
+			if !r.Ok() {
+				t.Fatalf("GetHistoryCandles failed: %v", r.Error)
+			}
+			if len(r.Data) == 0 {
+				t.Fatal("expected non-empty candles list")
+			}
+			if tt.wantLen != 0 && len(r.Data) != tt.wantLen {
+				t.Fatalf("expected %d candles, got %d", tt.wantLen, len(r.Data))
+			}
+			for i, v := range r.Data {
+				if v.Open <= 0 || v.High <= 0 || v.Low <= 0 || v.Close <= 0 {
+					t.Fatalf("candle %d: expected positive ohlc, got o=%v h=%v l=%v c=%v", i, v.Open, v.High, v.Low, v.Close)
+				}
+				if v.High < v.Low {
+					t.Fatalf("candle %d: expected high %v >= low %v", i, v.High, v.Low)
+				}
+				if v.High < v.Open || v.High < v.Close {
+					t.Fatalf("candle %d: expected high %v >= open %v and close %v", i, v.High, v.Open, v.Close)
+				}
+				if v.Low > v.Open || v.Low > v.Close {
+					t.Fatalf("candle %d: expected low %v <= open %v and close %v", i, v.Low, v.Open, v.Close)
+				}
+				if (v.Ts % tt.intervalMs) != 0 {
+					t.Fatalf("candle %d: expected ts %v aligned to interval %v ms", i, v.Ts, tt.intervalMs)
+				}
+				if i > 0 && v.Ts <= r.Data[i-1].Ts {
+					t.Fatalf("candle %d: expected ascending ts, got %v after %v", i, v.Ts, r.Data[i-1].Ts)
+				}
+				if tt.req.StartTime != 0 && v.Ts < tt.req.StartTime {
+					t.Fatalf("candle %d: expected ts %v >= startTime %v (inclusive)", i, v.Ts, tt.req.StartTime)
+				}
+				if tt.req.EndTime != 0 && v.Ts >= tt.req.EndTime {
+					t.Fatalf("candle %d: expected ts %v < endTime %v (exclusive)", i, v.Ts, tt.req.EndTime)
+				}
+			}
+			// full window: the first candle opens exactly at the inclusive startTime
+			if tt.req.StartTime != 0 && r.Data[0].Ts != tt.req.StartTime {
+				t.Fatalf("expected first ts %v, got %v", tt.req.StartTime, r.Data[0].Ts)
+			}
+			if tt.fresh {
+				last := r.Data[len(r.Data)-1]
+				if age := time.Since(time.UnixMilli(last.Ts)); age > 2*time.Minute {
+					t.Fatalf("expected fresh last candle, got age %v", age)
+				}
+			}
+			last := r.Data[len(r.Data)-1]
+			t.Logf("candles: %d, last: start %v, o %v, h %v, l %v, c %v, vol %v",
+				len(r.Data), time.UnixMilli(last.Ts).UTC().Format("2006-01-02 15:04:05"),
+				last.Open, last.High, last.Low, last.Close, last.Volume)
+		})
+	}
+}
+
+func TestGetHistoryCandlesError(t *testing.T) {
+	const dayMs = int64(86_400_000)
+	now := time.Now().UnixMilli()
+
+	tests := []struct {
+		name     string
+		req      GetHistoryCandles
+		wantCode string
+	}{
+		{
+			// limit above the history-candles maximum of 100 (candles allows up to 1000)
+			name:     "limit above maximum",
+			req:      GetHistoryCandles{Category: UsdtFutures, Symbol: "BTCUSDT", Interval: Interval1m, Limit: 200},
+			wantCode: "40020",
+		},
+		{
+			// window wider than 90 days fails with 00001, not the usual parameter error 40020
+			name: "window above 90 days",
+			req: GetHistoryCandles{
+				Category:  UsdtFutures,
+				Symbol:    "BTCUSDT",
+				Interval:  Interval1m,
+				StartTime: now - 200*dayMs,
+				EndTime:   now - 100*dayMs,
+			},
+			wantCode: "00001",
+		},
+	}
+
+	c := NewClient()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r := c.GetHistoryCandles(tt.req)
+			if r.Ok() {
+				t.Fatalf("expected error, got %d candles", len(r.Data))
+			}
+			var e *Error
+			if !errors.As(r.Error, &e) {
+				t.Fatalf("expected bitget error, got %v", r.Error)
+			}
+			if e.Code != tt.wantCode {
+				t.Fatalf("expected code %s, got %s: %s", tt.wantCode, e.Code, e.Text)
+			}
 		})
 	}
 }

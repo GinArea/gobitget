@@ -62,9 +62,36 @@ the `utc` suffix is lowercase (`1Dutc`).
 - **Row shape**: `[ts, open, high, low, close, volume, turnover]`, every element is a JSON string;
   identical for all categories.
 - **`type=mark`** candles have `volume` and `turnover` equal to 0.
-- **History depth** is limited and varies by interval: e.g. 1m candles are unavailable a few
-  months back, and the monthly (`1M`) history of BTCUSDT USDT-FUTURES held only 4 rows —
-  a request may return fewer rows than `limit` without an error.
+- **History depth** is limited and varies by interval: 1m candles exist only **~31 days back**
+  (windows 35 and 60 days ago return empty `data` without an error; a year of 1m collection
+  stalls at ≈44640 rows = 31×1440), and the monthly (`1M`) history of BTCUSDT USDT-FUTURES
+  held only 4 rows — a request may return fewer rows than `limit` without an error.
+  For older data use `GET /api/v3/market/history-candles` (below).
+
+## Verified `GET /api/v3/market/history-candles` quirks
+
+Same request/response shape as `candles` (`category`, `symbol`, `interval`, `startTime`,
+`endTime`, `type`, `limit`; rows `[ts, open, high, low, close, volume, turnover]`,
+oldest-first), but with different limits and window semantics. Verified live on BTCUSDT
+(SPOT and USDT-FUTURES), 2026-08-18:
+
+- **History depth**: deep — 1m rows returned for windows 1, 2 and 4 years back
+  (at least to 2022-08), for both SPOT and USDT-FUTURES.
+- **`limit`**: default 100, **maximum 100** (unlike `candles`);
+  `limit > 100` fails with parameter error 40020.
+- **Time window bounds are the OPPOSITE of `candles`**: `startTime` is **inclusive**,
+  `endTime` is **exclusive** — the response contains candles with `startTime <= ts < endTime`.
+- **Maximum window**: `endTime - startTime` must not exceed **90 days**, otherwise HTTP 400
+  with code **`00001`** `"startTime and endTime interval cannot be greater than 90 days"`
+  (not the usual parameter error 40020).
+- Without `startTime` the endpoint returns the last `limit` candles before `endTime`
+  (exclusive); without both — the most recent candles.
+- **Intervals**: same set as `candles`, including the undocumented ones
+  (`2H`, `3D`, `1W`, `1M`, `6Hutc`, `12Hutc`, `1Dutc` verified); `8H` fails with 40020.
+- **`type`**: `mark` and `premium` work (`mark` rows have zero `volume`/`turnover`),
+  same as `candles`.
+- Rate limit per docs: 20 req/s/IP. A year of 1m candles = 525600/100 ≈ 5256 requests
+  (≈ 4.5 min at full rate).
 
 ## WebSocket kline intervals: v3 vs legacy v2
 

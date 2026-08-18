@@ -371,6 +371,10 @@ type TickerSpot struct {
 // the utc-suffixed variants - on the UTC grid; intervals up to 4H are UTC-aligned as is.
 // 3H, 8H, 1Hutc and 4Hutc do not exist (parameter error 40020).
 // See BITGET_API.md for the full interval/alignment reference table
+//
+// History depth is shallow and varies by interval: 1m rows exist only ~31 days back,
+// older windows return empty data without an error (verified live).
+// For deeper history use GetHistoryCandles
 type GetCandles struct {
 	// Category - Product type: SPOT, USDT-FUTURES, COIN-FUTURES, USDC-FUTURES (MARGIN is not supported)
 	Category Category
@@ -400,7 +404,8 @@ func (o *Client) GetCandles(v GetCandles) Response[[]Candle] {
 	return v.Do(o)
 }
 
-// Candle - item in GET /api/v3/market/candles response: [ts, open, high, low, close, volume, turnover]
+// Candle - item in GET /api/v3/market/candles and history-candles responses:
+// [ts, open, high, low, close, volume, turnover]
 // Every element arrives as a JSON string; the row shape is the same for all categories
 // Rows are sorted oldest-first (verified live)
 // https://www.bitget.com/api-doc/uta/public/Get-Candle-Data
@@ -452,4 +457,58 @@ func unmarshalCandle(s []string) (r Candle, err error) {
 		}
 	}
 	return
+}
+
+// GetHistoryCandles - request for GET /api/v3/market/history-candles (UTA)
+// https://www.bitget.com/api-doc/uta/public/Get-History-Candle-Data
+//
+//	category  Required string Product type: SPOT, USDT-FUTURES, COIN-FUTURES, USDC-FUTURES
+//	symbol    Required string Symbol name, e.g. BTCUSDT
+//	interval  Required string Granularity: 1m, 3m, 5m, 15m, 30m, 1H, 4H, 6H, 12H, 1D
+//	startTime          string Start timestamp, unix ms
+//	endTime            string End timestamp, unix ms
+//	type               string Candlestick type: market (default), mark, index, premium
+//	limit              string Limit per page
+//
+// Unlike candles, whose history depth is shallow (1m rows exist only ~31 days back),
+// history-candles serves deep history: BTCUSDT 1m rows verified live back to 2022-08
+// for both SPOT and USDT-FUTURES. The response row shape and ordering are identical
+// to candles.
+//
+// The time window works differently from GetCandles: startTime is inclusive and
+// endTime is exclusive - [startTime, endTime) - and the window must not exceed
+// 90 days, otherwise error code 00001 (not the usual parameter error 40020).
+// Without startTime the last limit candles before endTime are returned.
+//
+// Undocumented intervals work the same as in GetCandles (2H, 3D, 1W, 1M and the
+// utc-suffixed variants verified live; 8H is a parameter error) - see the GetCandles
+// note and BITGET_API.md for the interval/alignment reference
+type GetHistoryCandles struct {
+	// Category - Product type: SPOT, USDT-FUTURES, COIN-FUTURES, USDC-FUTURES (MARGIN is not supported)
+	Category Category
+	// Symbol - Symbol name, e.g. BTCUSDT
+	Symbol string
+	// Interval - Granularity: 1m, 3m, 5m, 15m, 30m, 1H, 4H, 6H, 12H, 1D
+	// (+ the undocumented intervals of GetCandles - see the note above)
+	Interval Interval
+	// StartTime - Start timestamp, unix ms, inclusive: candles with ts >= startTime
+	// (opposite of GetCandles; verified live)
+	StartTime int64 `url:",omitempty"`
+	// EndTime - End timestamp, unix ms, exclusive: candles with ts < endTime
+	// (opposite of GetCandles; verified live); endTime-startTime must not exceed 90 days
+	EndTime int64 `url:",omitempty"`
+	// Type - Candlestick type: market (default), mark, index, premium
+	Type CandleType `url:",omitempty"`
+	// Limit - Limit per page: default 100, maximum 100 (unlike candles), above 100 -> parameter error 40020
+	Limit int `url:",omitempty"`
+}
+
+func (o GetHistoryCandles) Do(c *Client) Response[[]Candle] {
+	return GetPub(c.market(), "history-candles", o, func(l [][]string) ([]Candle, error) {
+		return transformList(l, unmarshalCandle)
+	})
+}
+
+func (o *Client) GetHistoryCandles(v GetHistoryCandles) Response[[]Candle] {
+	return v.Do(o)
 }
