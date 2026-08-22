@@ -478,7 +478,14 @@ func unmarshalCandle(s []string) (r Candle, err error) {
 // The time window works differently from GetCandles: startTime is inclusive and
 // endTime is exclusive - [startTime, endTime) - and the window must not exceed
 // 90 days, otherwise error code 00001 (not the usual parameter error 40020).
-// Without startTime the last limit candles before endTime are returned.
+// Without startTime the same 90-day window applies IMPLICITLY before endTime
+// (before "now" if endTime is also omitted): the response holds
+// min(limit, 90 days / interval) rows, silently, with no 00001 error - for
+// intervals longer than 21.6h a page is always shorter than limit (1Dutc:
+// exactly 90 rows), so only an empty page marks the end of history (verified live).
+//
+// Only closed candles are returned: the current unclosed bar is never included
+// (unlike candles, whose last row is the live unclosed bar; verified live).
 //
 // Undocumented intervals work the same as in GetCandles (2H, 3D, 1W, 1M and the
 // utc-suffixed variants verified live; 8H is a parameter error) - see the GetCandles

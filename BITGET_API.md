@@ -64,8 +64,9 @@ the `utc` suffix is lowercase (`1Dutc`).
 - **`type=mark`** candles have `volume` and `turnover` equal to 0.
 - **History depth** is limited and varies by interval: 1m candles exist only **~31 days back**
   (windows 35 and 60 days ago return empty `data` without an error; a year of 1m collection
-  stalls at ≈44640 rows = 31×1440), and the monthly (`1M`) history of BTCUSDT USDT-FUTURES
-  held only 4 rows — a request may return fewer rows than `limit` without an error.
+  stalls at ≈44640 rows = 31×1440), `1Dutc` — **90 days back** (`limit=1000` returns 90 rows),
+  and the monthly (`1M`) history of BTCUSDT USDT-FUTURES held only 4 rows — a request may
+  return fewer rows than `limit` without an error.
   For older data use `GET /api/v3/market/history-candles` (below).
 
 ## Verified `GET /api/v3/market/history-candles` quirks
@@ -73,10 +74,13 @@ the `utc` suffix is lowercase (`1Dutc`).
 Same request/response shape as `candles` (`category`, `symbol`, `interval`, `startTime`,
 `endTime`, `type`, `limit`; rows `[ts, open, high, low, close, volume, turnover]`,
 oldest-first), but with different limits and window semantics. Verified live on BTCUSDT
-(SPOT and USDT-FUTURES), 2026-08-18:
+(SPOT and USDT-FUTURES), 2026-08-18; implicit-window and closed-bar quirks — 2026-08-22:
 
 - **History depth**: deep — 1m rows returned for windows 1, 2 and 4 years back
-  (at least to 2022-08), for both SPOT and USDT-FUTURES.
+  (at least to 2022-08), for both SPOT and USDT-FUTURES; `1Dutc` rows verified back
+  to 2019-08 (USDT-FUTURES).
+- **Only closed candles**: the current unclosed bar is never included — the newest row
+  is the last closed candle (unlike `candles`, whose last row is the live unclosed bar).
 - **`limit`**: default 100, **maximum 100** (unlike `candles`);
   `limit > 100` fails with parameter error 40020.
 - **Time window bounds are the OPPOSITE of `candles`**: `startTime` is **inclusive**,
@@ -84,8 +88,13 @@ oldest-first), but with different limits and window semantics. Verified live on 
 - **Maximum window**: `endTime - startTime` must not exceed **90 days**, otherwise HTTP 400
   with code **`00001`** `"startTime and endTime interval cannot be greater than 90 days"`
   (not the usual parameter error 40020).
-- Without `startTime` the endpoint returns the last `limit` candles before `endTime`
-  (exclusive); without both — the most recent candles.
+- **Implicit 90-day window without `startTime`**: the endpoint does NOT return the last
+  `limit` candles before `endTime` — the response is silently capped by the window
+  `[endTime − 90 days, endTime)`, i.e. `min(limit, 90 days / interval)` rows, with no
+  `00001` error. For intervals longer than 21.6h a page is therefore ALWAYS shorter than
+  `limit` (`1Dutc`: exactly 90 rows), so a paginator must not treat a short page as the
+  end of history — only an empty page is. Without both timestamps the same window
+  applies before "now".
 - **Intervals**: same set as `candles`, including the undocumented ones
   (`2H`, `3D`, `1W`, `1M`, `6Hutc`, `12Hutc`, `1Dutc` verified); `8H` fails with 40020.
 - **`type`**: `mark` and `premium` work (`mark` rows have zero `volume`/`turnover`),
