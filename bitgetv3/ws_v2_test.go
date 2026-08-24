@@ -370,17 +370,25 @@ func TestSubscriptionsV2(t *testing.T) {
 		if len(c.unsubscribes) != 1 || c.unsubscribes[0][0] != args2H {
 			t.Fatalf("expected unsubscribe sent, got %+v", c.unsubscribes)
 		}
+		// the handler is gone, but the server has not acked yet: pushes still in
+		// flight are expected and must not be reported as an unknown channel
+		if err := s.processTopic([]byte(candleV2Push("USDT-FUTURES", "candle2H", "BTCUSDT"))); err != nil {
+			t.Fatalf("expected in-flight push dropped silently, got error: %v", err)
+		}
+		s.unsubscribeConfirmed(args2H)
 		if err := s.processTopic([]byte(candleV2Push("USDT-FUTURES", "candle2H", "BTCUSDT"))); err == nil {
-			t.Fatal("expected not found error after unsubscribe")
+			t.Fatal("expected not found error after the unsubscribe ack")
 		}
 	})
 
-	t.Run("route case-insensitive", func(t *testing.T) {
+	t.Run("route case-insensitive instType and instId", func(t *testing.T) {
+		// the channel name is matched verbatim: its case carries the timeframe
+		// (candle1m is a minute, candle1M a month)
 		c := &fakeSubscriptionClientV2{ready: true}
 		s := NewSubscriptionsV2(c)
 		var got int
 		s.subscribe(args2H, func(RawTopicV2) error { got++; return nil })
-		if err := s.processTopic([]byte(candleV2Push("usdt-futures", "CANDLE2h", "btcusdt"))); err != nil {
+		if err := s.processTopic([]byte(candleV2Push("usdt-futures", "candle2H", "btcusdt"))); err != nil {
 			t.Fatalf("expected case-insensitive routing, got error: %v", err)
 		}
 		if got != 1 {

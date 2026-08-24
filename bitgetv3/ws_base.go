@@ -67,6 +67,9 @@ func (o *WsBase) Run() {
 	o.c.WithOnDisconnected(func() {
 		o.ready = false
 		o.authSent = false
+		// no ack will arrive for a pending unsubscribe, and nothing is in flight
+		// any more: the server-side subscription state died with the socket
+		o.subscriptions.resetUnsubscribing()
 		if o.onDisconnected != nil {
 			o.onDisconnected()
 		}
@@ -114,6 +117,11 @@ func (o *WsBase) onResponse(r WsResponse) {
 		o.authSent = false
 		o.loginFailed(r)
 		return
+	}
+	// the ack closes the window in which the server was still pushing the topic we
+	// had already dropped locally: a push after it is a real routing error again
+	if r.IsUnsubscribe() {
+		o.subscriptions.unsubscribeConfirmed(r.Arg)
 	}
 	r.Log(o.c.Log())
 	if r.IsError() && o.onError != nil {

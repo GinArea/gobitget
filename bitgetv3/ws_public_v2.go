@@ -109,6 +109,9 @@ func (o *WsPublicV2) Run() {
 	})
 	o.c.WithOnDisconnected(func() {
 		o.ready = false
+		// no ack will arrive for a pending unsubscribe, and nothing is in flight
+		// any more: the server-side subscription state died with the socket
+		o.subscriptions.resetUnsubscribing()
 		if o.onDisconnected != nil {
 			o.onDisconnected()
 		}
@@ -139,6 +142,11 @@ func (o *WsPublicV2) unsubscribe(args ...SubscriptionArgsV2) {
 }
 
 func (o *WsPublicV2) onResponse(r WsResponseV2) {
+	// the ack closes the window in which the server was still pushing the channel
+	// we had already dropped locally: a push after it is a real routing error again
+	if r.IsUnsubscribe() {
+		o.subscriptions.unsubscribeConfirmed(r.Arg)
+	}
 	r.Log(o.c.Log())
 	if r.IsError() && o.onError != nil {
 		o.onError(r)
