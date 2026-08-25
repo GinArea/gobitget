@@ -109,5 +109,7 @@ func (o *Client) v2() *Client {
 	return o.Copy().WithPath(ApiVersion2)
 }
 
-// OnTransportError - callback on a transport-level failure; return true to retry the request
+// OnTransportError - callback on a transport-level failure (see Response.Retryable:
+// network failure, 5xx/52x, 403/429); return true to retry the request.
+// It is NOT called for an answer carrying a Bitget error code - a repeat cannot change it
 type OnTransportError func(err error, method string, statusCode int, attempt int) bool

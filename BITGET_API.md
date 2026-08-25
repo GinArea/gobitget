@@ -309,3 +309,30 @@ the mode is changed, otherwise it cannot be restored.
 Verified live on the main account: an unknown `holdMode` value is rejected with HTTP 400 and
 `{"code":"40034","msg":"Parameter <value> does not exist"}` — the submitted value is echoed back,
 confirming the request body key is read as `holdMode`.
+
+---
+
+## Business errors arrive with HTTP 400, not HTTP 200
+
+Unlike OKX and Bybit — which answer `200 OK` and carry the failure in the body (`code`/`retCode`) —
+Bitget returns a **non-2xx status for ordinary business rejections**, with the envelope in the body:
+
+```
+POST /api/v3/account/set-hold-mode  ->  400 Bad Request
+{"code":"25107","msg":"There is currently a position, please close the position", ...}
+```
+
+The same holds for `25204` (order does not exist), `45110` (below min notional), `40020`
+(parameter error) and friends. These are normal, expected answers from the exchange, not failures
+of the transport.
+
+This is why the retry loop in `request.go` is gated on `Response.Retryable()` rather than on
+`StatusCode != 200`. With the looser gate, every routine rejection fell through to
+`OnTransportError`, and a caller whose callback answered "retry" (the common shape: rotate proxy,
+`return attempt < 4`) turned **one** call into **five** identical round-trips, each returning the
+very same deterministic code. `Retryable()` admits only a network failure before any answer
+(`NetError`, `StatusCode == 0`), 5xx/52x unavailability, and 403/429 from the edge layer.
+
+Note that `Retryable()` still admits 5xx on a **POST**: it is the caller's callback that must
+decide not to replay a non-idempotent request, since only the caller knows whether the operation
+can be reconciled afterwards (e.g. by `clientOid`).
