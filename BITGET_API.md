@@ -292,3 +292,20 @@ header.
 
 **WebSocket**: the guidance defines an `apiCode` field at the same level as `op`/`args` in the
 place-order channel. Not implemented — this library has no WS order placement.
+
+---
+
+## Holding mode (`POST /api/v3/account/set-hold-mode`)
+
+**There is no read counterpart.** The Account section of the UTA v3 docs has no endpoint that
+returns the current `holdMode` — it can only be recovered indirectly, from the `holdMode` field
+of an open position (`GET /api/v3/position/current-position`) or an open order
+(`GET /api/v3/trade/unfilled-orders`). On an account with neither, the current mode is not
+observable through the API at all.
+
+This is why `TestSetHoldMode` skips instead of probing: the original value must be known before
+the mode is changed, otherwise it cannot be restored.
+
+Verified live on the main account: an unknown `holdMode` value is rejected with HTTP 400 and
+`{"code":"40034","msg":"Parameter <value> does not exist"}` — the submitted value is echoed back,
+confirming the request body key is read as `holdMode`.

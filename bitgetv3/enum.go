@@ -93,3 +93,14 @@ const (
 	// CandlePremium - Premium index price candles (futures only)
 	CandlePremium CandleType = "premium"
 )
+
+// HoldMode - Position holding mode
+// https://www.bitget.com/api-doc/uta/account/Change-Position-Mode
+type HoldMode string
+
+const (
+	// OneWayMode - Holding positions in a single direction, either long or short, but not both at the same time
+	OneWayMode HoldMode = "one_way_mode"
+	// HedgeMode - Holding both long and short positions simultaneously
+	HedgeMode HoldMode = "hedge_mode"
+)

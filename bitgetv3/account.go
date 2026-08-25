@@ -230,3 +230,20 @@ type AccountAsset struct {
 	// Bonus - USDT bonus amount
 	Bonus ujson.Float64
 }
+
+// SetHoldMode - request for POST /api/v3/account/set-hold-mode (UTA)
+// https://www.bitget.com/api-doc/uta/account/Change-Position-Mode
+// Rate limit: 10/sec/UID, permission: UTA mgt. (read & write)
+// Response data is the plain string "success"
+type SetHoldMode struct {
+	// HoldMode - Holding mode: one_way_mode, hedge_mode
+	HoldMode HoldMode
+}
+
+func (o SetHoldMode) Do(c *Client) Response[string] {
+	return Post(c, "account/set-hold-mode", o, forward[string])
+}
+
+func (o *Client) SetHoldMode(mode HoldMode) Response[string] {
+	return SetHoldMode{HoldMode: mode}.Do(o)
+}
