@@ -48,12 +48,23 @@ func (o WsResponseV2) ParamError() bool {
 	return o.Code.Value() == 30016
 }
 
+// ServiceUpgrade - notice 30033, the upgrade warning of the v3 socket: the legacy
+// endpoint lives on the same servers and announces the reset the same way
+func (o WsResponseV2) ServiceUpgrade() bool {
+	return o.Code.Value() == 30033
+}
+
 func (o WsResponseV2) Log(log *ulog.Log) {
 	switch o.Event {
 	case "subscribe", "unsubscribe":
 		log.Debug(o.Event+":", o.Arg.InstType, o.Arg.Channel, o.Arg.InstId)
 	case "error":
-		log.Error("error:", o.Code.Value(), o.Msg)
+		// not a failure - see WsResponse.Log
+		if o.ServiceUpgrade() {
+			log.Info("service upgrade:", o.Code.Value(), o.Msg)
+		} else {
+			log.Error("error:", o.Code.Value(), o.Msg)
+		}
 	default:
 		log.Warning("unknown event:", o.Event)
 	}

@@ -142,6 +142,11 @@ func (o *WsPublicV2) unsubscribe(args ...SubscriptionArgsV2) {
 }
 
 func (o *WsPublicV2) onResponse(r WsResponseV2) {
+	// a routine notice, not an error - see WsBase.onResponse
+	if r.IsError() && r.ServiceUpgrade() {
+		r.Log(o.c.Log())
+		return
+	}
 	// the ack closes the window in which the server was still pushing the channel
 	// we had already dropped locally: a push after it is a real routing error again
 	if r.IsUnsubscribe() {

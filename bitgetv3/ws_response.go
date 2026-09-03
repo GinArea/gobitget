@@ -66,6 +66,13 @@ func (o WsResponse) InvalidSign() bool {
 	return o.Code.Value() == 30015
 }
 
+// ServiceUpgrade - notice 30033: the server is being upgraded and is about to reset the
+// connection, announced roughly a minute ahead. Routine operation rather than a failure:
+// the reconnect loop re-establishes the socket and replays the subscriptions
+func (o WsResponse) ServiceUpgrade() bool {
+	return o.Code.Value() == 30033
+}
+
 func (o WsResponse) Log(log *ulog.Log) {
 	switch o.Event {
 	case "subscribe", "unsubscribe":
@@ -73,7 +80,14 @@ func (o WsResponse) Log(log *ulog.Log) {
 	case "login":
 		log.Debug("login:", o.Code.Value())
 	case "error":
-		log.Error("error:", o.Code.Value(), o.Msg)
+		// the upgrade notice is not a failure, and error level is not free: the caller
+		// forwards it to the operator, once per socket, and the public stack runs one
+		// socket per symbol
+		if o.ServiceUpgrade() {
+			log.Info("service upgrade:", o.Code.Value(), o.Msg)
+		} else {
+			log.Error("error:", o.Code.Value(), o.Msg)
+		}
 	default:
 		log.Warning("unknown event:", o.Event)
 	}

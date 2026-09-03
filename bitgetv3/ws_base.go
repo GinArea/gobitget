@@ -100,6 +100,14 @@ func (o *WsBase) unsubscribe(args ...SubscriptionArgs) {
 }
 
 func (o *WsBase) onResponse(r WsResponse) {
+	// the notice may land inside the handshake window below, which takes any error for a
+	// login rejection and would stop the reconnect loop for good - killing the very
+	// socket the notice asks to re-establish. It is no failure, so onError, whose
+	// contract is that something went wrong, stays out of it
+	if r.IsError() && r.ServiceUpgrade() {
+		r.Log(o.c.Log())
+		return
+	}
 	if r.IsLogin() {
 		o.authSent = false
 		if r.Code.Value() == 0 {
